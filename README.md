@@ -1,17 +1,4 @@
 # Alife RLHF pipeline
-
-> [!WARNING]
-> **This branch is made for the late breaking abstracts for the Alife 2025 Conference !**
-> 
-> This repository contains experimental code for research purposes. The codebase is actively under development and may contain bugs, incomplete features or bad documentation.
-> 
-> - **Not production-ready**: This software is intended for research and experimentation only.
-> - **Limited support**: This is a research project with limited maintenance resources.
-> - **Contributions welcome**: Feel free to open issues or submit pull requests to help improve the project !
->
-> This branch will be terminated when the project will be publication ready.
-
-
 ## Presentation
 The idea of this app is to be a pipeline applying RLHF to train a model for generating interesting simulation parameters.
 
