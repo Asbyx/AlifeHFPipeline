@@ -3,9 +3,16 @@
 # Authorize only rlhfalife folder and subfolders and profiles/lenia folder
 !rlhfalife/
 !rlhfalife/*
+!profiles/
 !profiles/lenia/
+!profiles/lenia/*
+
 !profiles/particlelife/
 !profiles/particlelife/*
+profiles/particlelife/configs/
+profiles/particlelife/configs/*
+profiles/particlelife/rewarder/clipvip_32.pt
+
 
 mes_notes.md
 

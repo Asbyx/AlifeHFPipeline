@@ -1,0 +1,25 @@
+{
+    "size": [500, 500],
+    "steps": 4000,
+    "particles_number": 1000,
+    "beta": 0.3,
+    "force_factor": 15,
+    "max_radius": 0.040,
+    "friction_half_time": 0.043,
+    "dt": 0.05,
+
+    "head_type": "mlp",
+    "num_frames": 16,
+    "(default_lr)": 0.0001,
+    "lr": 0.0001, 
+    "batch_size": 8,
+    "epochs": 10,
+    "early_stopping_patience": 10,
+    "val_size": 0.075,
+    "video_frames_sample_rate": 10,
+    "loss": "cross_entropy",
+    "model_name": "alife_conf",
+    
+    "device": "cuda",
+    "comments": "pairs = 600, simulations = 100"
+}
