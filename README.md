@@ -1,5 +1,19 @@
-# Alife RLH pipeline
-The idea of the app is to be a pipeline applying RLHF to train a model for generating interesting simulation parameters.
+# Alife RLHF pipeline
+
+> [!WARNING]
+> **This branch is made for the late breaking abstracts for the Alife 2025 Conference !**
+> 
+> This repository contains experimental code for research purposes. The codebase is actively under development and may contain bugs, incomplete features or bad documentation.
+> 
+> - **Not production-ready**: This software is intended for research and experimentation only.
+> - **Limited support**: This is a research project with limited maintenance resources.
+> - **Contributions welcome**: Feel free to open issues or submit pull requests to help improve the project !
+>
+> This branch will be terminated when the project will be publication ready.
+
+
+## Presentation
+The idea of this app is to be a pipeline applying RLHF to train a model for generating interesting simulation parameters.
 
 The pipeline is a loop of 4 stages:
 - **Generation**: A Generator produces some parameters
@@ -8,6 +22,8 @@ The pipeline is a loop of 4 stages:
 - **Fine Tuning**: Using the Rewarder, train the Generator.
 - and repeat...
 This pipeline include every steps.  
+
+This pipeline is fully in python.
 
 ## Installation
 Clone the repository.  
@@ -36,12 +52,3 @@ The pipeline is divided in three categories:
 Everything is saved in `out/<profile>/<config>/`. That way you can recover parameters, outputs and videos easily.   
 
 Please, fill free to open an issue to report a bug or make a suggestion !  
-
-# WIP
-- Profile & out downloading and sharing
-- Currently, the outputs of a simulation are used to: 
-    1. Make the video
-    2. As inputs for the rewardor, which will need often some preprocessing before.  
-
-    This is not very optimized, the pipeline could, at the same time of the generation of the video, call a rewarder function "preprocess", which would generate and save the preprocessed_outputs for the rewarder.
-- Propose to reload everything from the main menu
