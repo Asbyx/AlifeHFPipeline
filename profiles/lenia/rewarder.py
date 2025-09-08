@@ -36,10 +36,10 @@ class LeniaRewarder(TorchRewarder):
             wandb_params: Dictionary containing wandb parameters. Defaults to None.
         """
         super().__init__(config = config, model_path=model_path, device=device,simulator=simulator, wandb_params=wandb_params)
-        clipvip_weights = curpath / 'clipvip'/ 'checkpoints' / f'clipvip_{config.get('clipvip_size',16)}.pt'
+        clipvip_weights = curpath.parent / 'particlelife'/ 'rewarder' / f'clipvip_{config.get('clipvip_size',32)}.pt'
 
             
-        self.model = CLIPVIPReward(patch_size=config.get('clipvip_size',16), clipvip_weights=clipvip_weights, minihead=config.get('minihead',True),num_frames=config.get('num_frames',12),
+        self.model = CLIPVIPReward(patch_size=config.get('clipvip_size',32), clipvip_weights=clipvip_weights, minihead=config.get('minihead',True),num_frames=config.get('num_frames',12),
                                     device=device)
         self.model.freeze_body()
 
