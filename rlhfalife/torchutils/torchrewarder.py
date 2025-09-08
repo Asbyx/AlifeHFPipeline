@@ -183,17 +183,19 @@ class TorchRewarder(nn.Module, Rewarder):
         with torch.no_grad():
             for batch_data1, batch_data2, batch_winners in dataset_batches:
                 # Get predictions
-                scores1 = self(batch_data1)
-                scores2 = self(batch_data2)
-                
+                scores1 = self(batch_data1) # (B,)
+                scores2 = self(batch_data2) # (B,)
+
                 # Compute loss
                 loss = self.loss(scores1, scores2, batch_winners)
                 total_loss += loss.item()
                 
                 # Compute accuracy
                 predictions = (scores1 < scores2).int()
-                correct += (predictions == batch_winners).sum().item()
-                total += len(batch_winners)
+                mask_non_tie = (batch_winners==0) | (batch_winners==1) # ignore ties in accuracy
+                correct += (predictions[mask_non_tie] == batch_winners[mask_non_tie]).sum().item()
+
+                total += batch_winners[mask_non_tie].shape[0]
                 
                 batch_count += 1
         
