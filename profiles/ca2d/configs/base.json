@@ -20,7 +20,7 @@
         }
     },
     "generator": {
-        "seed": 42
+        "seed": 634
     },
     "device": "cuda",
     "test_set_path":"out/best_lenia/benchmark"

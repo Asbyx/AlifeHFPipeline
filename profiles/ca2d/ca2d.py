@@ -1,5 +1,5 @@
 from .automaton import Automaton
-import torch, pygame
+import torch
 import torch.nn.functional as F
 import colorsys
 

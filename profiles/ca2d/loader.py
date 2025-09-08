@@ -35,5 +35,6 @@ class Loader:
         if rewarder_path.exists():
             print("Loading existing rewarder model...")
             rewarder.load()
+            generator.train(simulator, rewarder)
 
         return generator, rewarder, simulator

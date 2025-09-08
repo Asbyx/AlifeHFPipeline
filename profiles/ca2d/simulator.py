@@ -35,8 +35,8 @@ class CA2DSimulator(Simulator):
     #-------- To implement --------#
     def run(self, params: List[Tuple[int]]) -> List[torch.Tensor]:
         """
-        Run the simulation with the given parameters, and save outputs.
-        Will save only even frames to avoid blinking.
+        Run the simulation with the given parameters, and return outputs.
+        Will return only even frames to avoid blinking.
 
         Args:
             params: Parameter list of ca2d in integer notation.

@@ -1,6 +1,8 @@
 from rlhfalife import Generator, Simulator, Rewarder
+from .simulator import CA2DSimulator
 from typing import List, Any
 import random
+from math import ceil
 
 
 class CA2DGenerator(Generator):
@@ -11,7 +13,7 @@ class CA2DGenerator(Generator):
     For example, for a cellular automaton, the parameters could be the initial state of the grid, or the neighborhood function.
     """
 
-    def __init__(self, seed=None, device='cpu'):
+    def __init__(self, seed=None, device='cpu', latest_rewarder=None, latest_simulator=None):
         """
         Initialize the generator for CA2D parameters
 
@@ -26,8 +28,10 @@ class CA2DGenerator(Generator):
         self.device = device
         self.latest_rewarder = None
         self.latest_simulator = None
+
     #-------- To implement --------#
-    def generate(self, nb_params: int) -> List[Any]:
+
+    def generato(self, nb_params: int) -> List[Any]:
         """
         Generate some parameters for the simulation.
         
@@ -46,20 +50,53 @@ class CA2DGenerator(Generator):
     
         return sampled_params
 
-    def reward_generate(self, nb_params: int, score_threshold = 10.,  rewarder_path=None) -> List[Any]:
+    def generate(self, nb_params: int, threshold: float = 0.2) -> List[Any]:
         """
-            Generate parameters, and keep only the ones that are above the score threshold.
+            Generate parameters, keeping only a fraction threshold of the best ones
+
+            Args:
+                nb_params: Number of different parameters to generate
+                threshold: ]0.,1] float, fraction of the best parameters to keep
+
+            Returns:
+                A list of nb_params selected parameters
         """
-    def train(self, simulator: "Simulator", rewarder: "Rewarder") -> None:
+        selected_params = []
+        if(self.latest_rewarder is not None and self.latest_simulator is not None):
+            num_sets_needed = ceil(1/threshold)
+            for _ in range(num_sets_needed):
+                params = self.generato(nb_params)
+                # Simulate and evaluate them
+                scores = []
+
+                sim_result = self.latest_simulator.run(params) # list of (T,C,H,W)
+                preprocessed = self.latest_rewarder.preprocess(sim_result) # (B,T',3,H,W)
+                scores = self.latest_rewarder(preprocessed) # (B, )
+
+                # Select the top x% of parameters, and add to the selected params
+                threshold_index = ceil(len(scores) * threshold)
+                selected_params.extend([p for p, s in sorted(zip(params, scores), key=lambda x: x[1], reverse=True)[:threshold_index]])
+                if(len(selected_params)>nb_params):
+                    break # break if we have enough params
+            
+            return selected_params[:nb_params]
+        else:
+            return self.generato(nb_params)
+
+
+    def train(self, simulator: "CA2DSimulator", rewarder: "Rewarder") -> None:
         """
-        'Trains' the generator : stores the latest rewarder for later use
+        'Trains' the generator : stores the latest rewarder and simulator.
+        They are using during 'generate_threshold', by generating parameters, 
+        simulating them, and keeping only the top x% of scores.
 
         Args:
-            simulator: Simulator for which the generator is trained (useless)
+            simulator: Simulator used to generate parameters.
             rewarder: Trained rewarder
         """
-        self.latest_rewarder = rewarder
-    
+        self.latest_rewarder : "Rewarder" = rewarder
+        self.latest_simulator : "CA2DSimulator" = simulator
+
     def save(self) -> None:
         """
         Save the generator to the path

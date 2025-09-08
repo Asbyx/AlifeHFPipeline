@@ -12,8 +12,7 @@ class MiniAttentionHead(ConfigModule):
             in_dim : int, dimension of the input
             num_tokens : int, number of tokens to output
         """
-        configo = dict(in_dim=in_dim, num_tokens=num_tokens)
-        super().__init__(configo)
+        super().__init__()
         
         self.attention = nn.MultiheadAttention(in_dim, num_heads=4, dropout=0.1, batch_first=True)
         self.score_head = nn.Linear(in_dim, 1)

@@ -1,8 +1,5 @@
-import numpy as np
 import torch
 from textwrap import dedent
-import pygame
-from easydict import EasyDict
 
 
 class Automaton:
