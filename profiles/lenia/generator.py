@@ -9,8 +9,8 @@ class LeniaGenerator(Generator):
             Temp Generator for Lenia. This will be replaced by a better generator later.
 
             Args:
-            gen_mode : 'default', 'random' or 'ptf'
-            k_size : size of the kernel
+                gen_mode : 'default', 'random' or 'ptf'
+                k_size : size of the kernel
         """
         super().__init__()
         self.gen_mode = gen_mode

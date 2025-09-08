@@ -35,7 +35,7 @@ class LeniaRewarder(TorchRewarder):
             device: Device to run the model on. Defaults to "cuda" if available, otherwise "cpu".
             wandb_params: Dictionary containing wandb parameters. Defaults to None.
         """
-        super().__init__( config = config, model_path=model_path, device=device,simulator=simulator, wandb_params=wandb_params)
+        super().__init__(config = config, model_path=model_path, device=device,simulator=simulator, wandb_params=wandb_params)
         clipvip_weights = curpath / 'clipvip'/ 'checkpoints' / f'clipvip_{config.get('clipvip_size',16)}.pt'
 
             

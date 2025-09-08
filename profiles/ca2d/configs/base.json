@@ -1,0 +1,27 @@
+{
+    "name": "baseCA2D",
+    "simulator":{
+        "world_size": [200,200],
+        "run_length": 600,
+        "dot_init": false
+    },
+    "rewarder": {
+        "config": {
+        "minihead": true,
+        "clipvip_size": 32,
+        "epochs":30,
+        "val_split": 0.1,
+        "early_stopping_patience": 5,
+        "batch_size": 32
+        },
+        "wandb_params": {
+            "project": "rlca2d",
+            "name": "baseCA2D"
+        }
+    },
+    "generator": {
+        "seed": 634
+    },
+    "device": "cuda",
+    "test_set_path":"out/best_lenia/benchmark"
+}

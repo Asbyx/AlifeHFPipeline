@@ -1,5 +1,5 @@
 from . import clipvip32, clipvip16, MiniBlock
-from torchenhanced import ConfigModule, DevModule
+from torchenhanced import ConfigModule
 import torch, torch.nn as nn
 
 
