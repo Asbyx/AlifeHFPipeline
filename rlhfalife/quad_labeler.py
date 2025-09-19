@@ -54,6 +54,8 @@ class DraggableVideo(tk.Frame):
         self.on_drag_release = on_drag_release
         self.on_drag_motion = on_drag_motion
         self.is_dragging = False
+
+        self.is_playing = True
         
         # Create the video label
         self.video_label = tk.Label(self)
@@ -95,8 +97,23 @@ class DraggableVideo(tk.Frame):
         self.after_id = None
         self.update_frame()
     
+    def _display_frame(self, frame):
+        """Helper to display a frame."""
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame = cv2.resize(frame, self.frame_size)
+        img = Image.fromarray(frame)
+        photo = ImageTk.PhotoImage(image=img)
+        self.video_label.config(image=photo)
+        self.video_label.image = photo
+    
     def update_frame(self):
         """Update the video frame."""
+        if not self.is_playing:
+            if self.after_id:
+                self.after_cancel(self.after_id)
+                self.after_id = None
+            return
+        
         ret, frame = self.cap.read()
         
         if not ret:
@@ -104,21 +121,34 @@ class DraggableVideo(tk.Frame):
             ret, frame = self.cap.read()
             
         if ret:
-            # Convert and resize frame
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.resize(frame, self.frame_size)
+            self._display_frame(frame)
             
-            # Convert to PIL Image and then to PhotoImage
-            img = Image.fromarray(frame)
-            photo = ImageTk.PhotoImage(image=img)
-            
-            # Update label
-            self.video_label.config(image=photo)
-            self.video_label.image = photo
-            
-            # Schedule next update
-            self.after_id = self.after(33, self.update_frame)  # ~30 fps
+        self.after_id = self.after(33, self.update_frame)  # ~30 fps
     
+    def next_frame(self):
+        """Go to the next frame."""
+        if not self.cap.isOpened():
+            return
+        current_frame_pos = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+        total_frames = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
+
+        if current_frame_pos < total_frames:
+             ret, frame = self.cap.read()
+             if ret:
+                self._display_frame(frame)
+
+    def prev_frame(self):
+        """Go to the previous frame."""
+        if not self.cap.isOpened():
+            return
+        current_frame_pos = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+        new_pos = current_frame_pos - 2
+        if new_pos >= 0:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
+            ret, frame = self.cap.read()
+            if ret:
+                self._display_frame(frame)
+
     def update_rank(self, new_index):
         """Update the rank label to show new position."""
         self.index = new_index
@@ -161,6 +191,7 @@ class DraggableVideo(tk.Frame):
     
     def release_resources(self):
         """Release video resources."""
+        self.is_playing = False
         if self.after_id:
             self.after_cancel(self.after_id)
         if self.cap and self.cap.isOpened():
@@ -234,6 +265,19 @@ class QuadLabelerApp:
         self.videos_frame = tk.Frame(self.master)
         self.videos_frame.pack(padx=20, pady=10)
         
+        # Create a new frame for video controls
+        self.video_controls_frame = tk.Frame(self.master)
+        self.video_controls_frame.pack(pady=5)
+
+        self.prev_frame_button = tk.Button(self.video_controls_frame, text="< Prev Frame", command=self.prev_frame)
+        self.prev_frame_button.pack(side=tk.LEFT, padx=5)
+
+        self.play_pause_button = tk.Button(self.video_controls_frame, text="Play/Pause", command=self.toggle_play_pause)
+        self.play_pause_button.pack(side=tk.LEFT, padx=5)
+
+        self.next_frame_button = tk.Button(self.video_controls_frame, text="Next Frame >", command=self.next_frame)
+        self.next_frame_button.pack(side=tk.LEFT, padx=5)
+        
         # Create frame for action buttons
         self.button_frame = tk.Frame(self.master)
         self.button_frame.pack(pady=15)
@@ -257,6 +301,19 @@ class QuadLabelerApp:
         # Create bottom frame for status and quit
         self.bottom_frame = tk.Frame(self.master)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+
+        # Create frame for keybindings
+        self.key_frame = tk.Frame(self.bottom_frame)
+        self.key_frame.pack(side=tk.LEFT, padx=10)
+        
+        # Add keybindings label
+        key_text_col1 = "Keybindings:\nEnter: Submit Ranking\nSpace: Restart Videos\nEsc: Quit"
+        key_label_col1 = tk.Label(self.key_frame, text=key_text_col1, justify=tk.LEFT)
+        key_label_col1.pack(side=tk.LEFT, anchor='n')
+
+        key_text_col2 = "\nLeft: Previous Frame\nRight: Next Frame\nP: Play/Pause"
+        key_label_col2 = tk.Label(self.key_frame, text=key_text_col2, justify=tk.LEFT)
+        key_label_col2.pack(side=tk.LEFT, anchor='n', padx=10)
         
         # Add progress percentage label
         self.progress_label = tk.Label(self.bottom_frame, text="Progress: 0% (0/0)")
@@ -266,21 +323,36 @@ class QuadLabelerApp:
         self.quit_button = tk.Button(self.bottom_frame, text="Quit", 
                                     command=self.save_and_exit, padx=5, pady=2)
         self.quit_button.pack(side=tk.RIGHT, padx=10)
-        
-        # Create frame for keybindings
-        self.key_frame = tk.Frame(self.master)
-        self.key_frame.pack(side=tk.BOTTOM, pady=5)
-        
-        # Add keybindings label
-        key_text = "Keybindings:\nEnter: Submit Ranking\nSpace: Restart Videos\nEsc: Quit"
-        self.key_label = tk.Label(self.key_frame, text=key_text, justify=tk.LEFT)
-        self.key_label.pack()
     
     def bind_keys(self):
         """Bind keyboard shortcuts."""
         self.master.bind('<Return>', lambda event: self.submit_ranking())
         self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<Escape>', lambda event: self.save_and_exit())
+        self.master.bind('p', lambda event: self.toggle_play_pause())
+        self.master.bind('<Left>', lambda event: self.prev_frame())
+        self.master.bind('<Right>', lambda event: self.next_frame())
+    
+    def toggle_play_pause(self):
+        """Toggle the playing state of the videos."""
+        for widget in self.video_widgets:
+            widget.is_playing = not widget.is_playing
+            if widget.is_playing:
+                widget.update_frame()
+
+    def next_frame(self):
+        """Advance all videos by one frame."""
+        for widget in self.video_widgets:
+            if widget.is_playing:
+                widget.is_playing = False # Pause first
+            widget.next_frame()
+
+    def prev_frame(self):
+        """Rewind all videos by one frame."""
+        for widget in self.video_widgets:
+            if widget.is_playing:
+                widget.is_playing = False # Pause first
+            widget.prev_frame()
     
     def load_next_videos(self):
         """Load the next set of 4 videos."""
