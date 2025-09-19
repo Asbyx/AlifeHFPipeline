@@ -224,6 +224,7 @@ class QuadLabelerApp:
         self.current_videos = []
         self.current_hashes = []
         self.video_widgets = []
+        self.ignored_quads = set()
         
         # For progress bar
         self.progress = None
@@ -299,6 +300,10 @@ class QuadLabelerApp:
                                       font=("Arial", 12, "bold"))
         self.submit_button.pack(side=tk.LEFT, padx=5)
         
+        self.skip_button = tk.Button(self.button_frame, text="Skip Ranking",
+                                     command=self.skip_ranking, padx=10, pady=5)
+        self.skip_button.pack(side=tk.LEFT, padx=5)
+        
         # Add restart videos button
         self.restart_button = tk.Button(self.button_frame, text="Restart Videos", 
                                       command=self.restart_videos, padx=10, pady=5)
@@ -322,7 +327,7 @@ class QuadLabelerApp:
         key_label_col1 = tk.Label(self.key_frame, text=key_text_col1, justify=tk.LEFT)
         key_label_col1.pack(side=tk.LEFT, anchor='n')
 
-        key_text_col2 = "\nLeft: Previous Frame\nRight: Next Frame\nP: Play/Pause"
+        key_text_col2 = "\nLeft: Previous Frame\nRight: Next Frame\nP: Play/Pause\nS: Skip Ranking"
         key_label_col2 = tk.Label(self.key_frame, text=key_text_col2, justify=tk.LEFT)
         key_label_col2.pack(side=tk.LEFT, anchor='n', padx=10)
         
@@ -338,6 +343,7 @@ class QuadLabelerApp:
     def bind_keys(self):
         """Bind keyboard shortcuts."""
         self.master.bind('<Return>', lambda event: self.submit_ranking())
+        self.master.bind('s', lambda event: self.skip_ranking())
         self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<Escape>', lambda event: self.save_and_exit())
         self.master.bind('p', lambda event: self.toggle_play_pause())
@@ -435,19 +441,32 @@ class QuadLabelerApp:
             if h not in hash_rankings:
                 hash_rankings[h] = 0
         
-        # Choose 4 hashes that have the fewest ranks and are not ranked together
-        sorted_hash_rankings = sorted(hash_rankings.items(), key=lambda x: x[1])
+        def _find_next_quad(nodes, path, ignored, existing_pairs): # DFS to find a quad that is not ranked together or ignored
+            if len(path) == 4:
+                sorted_path = tuple(sorted(path))
+                if sorted_path not in ignored:
+                    return path
+                return None
 
-        best_hashes = []
-        for h, _ in sorted_hash_rankings:
-            if h not in best_hashes:
-                for h2 in best_hashes:
-                    if (h, h2) in ranked_pairs_df or (h2, h) in ranked_pairs_df:
-                        break
-                else:
-                    best_hashes.append(h)
-            if len(best_hashes) == 4:
-                break
+            # Try to extend the current path
+            for i, node in enumerate(nodes):
+                # Check compatibility with current path
+                is_compatible = all(tuple(sorted((node, p_node))) not in existing_pairs for p_node in path)
+                
+                if is_compatible:
+                    # Recurse with remaining nodes
+                    result = _find_next_quad(nodes[i+1:], path + [node], ignored, existing_pairs)
+                    if result:
+                        return result
+            return None
+
+        all_hashes_sorted = [h for h, _ in sorted(hash_rankings.items(), key=lambda x: x[1])]
+        
+        best_hashes = _find_next_quad(all_hashes_sorted, [], self.ignored_quads, existing_pairs_set)
+
+        if best_hashes is None:
+            # If no quad is found, set it to an empty list to trigger video generation prompt
+            best_hashes = []
         
         if len(best_hashes) < 4:
             self.prompt_generate_new_videos()
@@ -667,6 +686,16 @@ class QuadLabelerApp:
         self.load_next_videos()
         self.update_progress_percentage()
     
+    def skip_ranking(self):
+        """Add the current quad to the ignored list and load the next one."""
+        if len(self.current_hashes) == 4:
+            # Sort to ensure canonical representation
+            ignored_hash_tuple = tuple(sorted(self.current_hashes))
+            self.ignored_quads.add(ignored_hash_tuple)
+            if self.verbose:
+                print(f"Added {ignored_hash_tuple} to ignored quads.")
+            self.load_next_videos()
+
     def restart_videos(self):
         """Restart all videos from the beginning."""
         for widget in self.video_widgets:
