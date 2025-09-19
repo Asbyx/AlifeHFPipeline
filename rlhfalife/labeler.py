@@ -42,6 +42,7 @@ class VideoLabelerApp:
         self.simulator = simulator
         self.dataset_manager = dataset_manager
         self.pairs_manager = pairs_manager
+        self.pairs_iterator = pairs_manager.unranked_pairs_iterator()
         self.verbose = verbose
         self.frame_size = frame_size
 
@@ -103,6 +104,9 @@ class VideoLabelerApp:
         self.right_button = tk.Button(self.button_frame, text="Right Wins", command=self.right_wins)
         self.right_button.pack(side="left", padx=2)
 
+        self.skip_button = tk.Button(self.button_frame, text="Skip", command=self.skip_pair)
+        self.skip_button.pack(side="left", padx=2)
+
         self.generate_button = tk.Button(self.button_frame, text="Generate New Pairs", command=self.generate_new_pairs_dialog)
         self.generate_button.pack(side="left", padx=5)
 
@@ -143,13 +147,13 @@ class VideoLabelerApp:
         self.master.bind('<Down>', lambda event: self.declare_equal())
         self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<BackSpace>', lambda event: self.previous_pair())
-
+        self.master.bind('<s>', lambda event: self.skip_pair())
     def load_next_videos(self, undo: bool = False):
         """Display the current pair of videos."""
         if undo:
             self.hash1, self.hash2 = self.pairs_manager.get_last_ranked_pair()
         else:
-            self.hash1, self.hash2 = self.pairs_manager.get_next_unranked_pair()
+            self.hash1, self.hash2 = next(self.pairs_iterator)
         if self.hash1 is None or self.hash2 is None:
             self.prompt_generate_new_pairs()
             return
@@ -310,6 +314,9 @@ class VideoLabelerApp:
 
     def declare_equal(self):
         self.record_winner('equal')
+
+    def skip_pair(self):
+        self.load_next_videos()
 
     def record_winner(self, winner):
         """Record the winner of the current pair."""
