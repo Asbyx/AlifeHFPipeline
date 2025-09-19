@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog, simpledialog
 import threading
 import cv2
 from PIL import Image, ImageTk
@@ -272,17 +272,17 @@ class LiveBenchmarkApp:
             messagebox.showinfo("Info", "No videos available to save.")
             return
 
-        from tkinter import filedialog
-        snapshot_path_str = filedialog.asksaveasfilename(
-            title="Save Benchmark Snapshot As",
+        snapshot_path_str = filedialog.askdirectory(
+            title="Save Benchmark Snapshot In",
             initialdir=str(Path(self.out_paths.get('root', '.')) / "benchmarks"),
-            defaultextension="",
         )
+
+        snapshot_name = simpledialog.askstring("Save Benchmark Snapshot As", "Enter the name of the snapshot: ")
 
         if not snapshot_path_str:
             return
 
-        snapshot_path = Path(snapshot_path_str)
+        snapshot_path = Path(snapshot_path_str) / snapshot_name
         
         should_overwrite = False
         if snapshot_path.exists():
