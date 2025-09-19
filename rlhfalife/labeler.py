@@ -42,9 +42,11 @@ class VideoLabelerApp:
         self.simulator = simulator
         self.dataset_manager = dataset_manager
         self.pairs_manager = pairs_manager
+        self.pairs_iterator = pairs_manager.unranked_pairs_iterator()
         self.verbose = verbose
         self.frame_size = frame_size
-        
+
+        self.is_playing = True
         self.master = master
         self.after_id = None
         self.cap1 = None
@@ -75,11 +77,14 @@ class VideoLabelerApp:
         self.progress_frame.pack(pady=5)
 
         # Add progress bars to the new frame
-        self.left_progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
-        self.left_progress.pack(side="left", padx=5)
+        self.progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
+        self.progress.pack(padx=5)
+        self.progress['value'] = 0
+        self.progress.bind("<Button-1>", self.on_progress_click)
 
-        self.right_progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
-        self.right_progress.pack(side="right", padx=5)
+        # Add play/pause button
+        self.play_pause_button = tk.Button(self.progress_frame, text="Play/Pause", command=self.toggle_play_pause)
+        self.play_pause_button.pack(side="left", padx=5)
 
         # Add pair info label
         self.pair_info_frame = tk.Frame(self.master)
@@ -98,6 +103,12 @@ class VideoLabelerApp:
         
         self.right_button = tk.Button(self.button_frame, text="Right Wins", command=self.right_wins)
         self.right_button.pack(side="left", padx=2)
+
+        self.skip_button = tk.Button(self.button_frame, text="Skip", command=self.skip_pair)
+        self.skip_button.pack(side="left", padx=2)
+
+        self.undo_button = tk.Button(self.button_frame, text="Undo", command=self.previous_pair)
+        self.undo_button.pack(side="left", padx=2)
 
         self.generate_button = tk.Button(self.button_frame, text="Generate New Pairs", command=self.generate_new_pairs_dialog)
         self.generate_button.pack(side="left", padx=5)
@@ -127,19 +138,25 @@ class VideoLabelerApp:
         self.keybindings_label = tk.Label(self.keybindings_frame, text="Keybindings:\nLeft Arrow: Left Wins\nRight Arrow: Right Wins\nDown Arrow: Equal\nSpace: Restart Videos\nBackspace: Previous Pair", justify="left")
         self.keybindings_label.pack()
 
+    def toggle_play_pause(self):
+        """Toggle the playing state of the videos."""
+        self.is_playing = not self.is_playing
+        if self.is_playing:
+            self.update_frames()
+
     def bind_keys(self):
         self.master.bind('<Left>', lambda event: self.left_wins())
         self.master.bind('<Right>', lambda event: self.right_wins())
         self.master.bind('<Down>', lambda event: self.declare_equal())
         self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<BackSpace>', lambda event: self.previous_pair())
-
+        self.master.bind('<s>', lambda event: self.skip_pair())
     def load_next_videos(self, undo: bool = False):
         """Display the current pair of videos."""
         if undo:
             self.hash1, self.hash2 = self.pairs_manager.get_last_ranked_pair()
         else:
-            self.hash1, self.hash2 = self.pairs_manager.get_next_unranked_pair()
+            self.hash1, self.hash2 = next(self.pairs_iterator)
         if self.hash1 is None or self.hash2 is None:
             self.prompt_generate_new_pairs()
             return
@@ -163,8 +180,37 @@ class VideoLabelerApp:
         # Update the pair info label
         self.pair_info_label.config(text=f"Pair {self.pairs_manager.get_nb_ranked_pairs()} of {self.pairs_manager.get_nb_pairs()}: {self.hash1} vs {self.hash2}")
         
+        self.progress['value'] = 0
+        self.progress['maximum'] = self.cap1.get(cv2.CAP_PROP_FRAME_COUNT)
+
         # Start playing the videos
         self.play_videos()
+
+    def _update_gui_frames(self, frame1, frame2):
+        """Helper to update the GUI with new frames."""
+        # Convert frames from BGR to RGB
+        frame1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
+        frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
+        
+        # Resize frames if needed
+        frame1 = cv2.resize(frame1, self.frame_size)
+        frame2 = cv2.resize(frame2, self.frame_size)
+        
+        # Convert to PIL Image
+        img1 = Image.fromarray(frame1)
+        img2 = Image.fromarray(frame2)
+        
+        # Convert to PhotoImage
+        photo1 = ImageTk.PhotoImage(image=img1)
+        photo2 = ImageTk.PhotoImage(image=img2)
+        
+        # Update labels
+        self.left_video_label.config(image=photo1)
+        self.left_video_label.image = photo1
+        self.right_video_label.config(image=photo2)
+        self.right_video_label.image = photo2
+        
+        self.progress['value'] = self.cap1.get(cv2.CAP_PROP_POS_FRAMES)
 
     def prompt_generate_new_pairs(self):
         """Prompt the user to generate new pairs."""
@@ -203,6 +249,9 @@ class VideoLabelerApp:
 
     def update_frames(self):
         """Update the video frames."""
+        if not self.is_playing:
+            return
+        
         ret1, frame1 = self.cap1.read()
         ret2, frame2 = self.cap2.read()
 
@@ -219,34 +268,46 @@ class VideoLabelerApp:
             ret2, frame2 = self.cap2.read()
 
         if ret1 and ret2:
-            # Convert frames from BGR to RGB
-            frame1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
-            frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
-            
-            # Resize frames if needed
-            frame1 = cv2.resize(frame1, self.frame_size)
-            frame2 = cv2.resize(frame2, self.frame_size)
-            
-            # Convert to PIL Image
-            img1 = Image.fromarray(frame1)
-            img2 = Image.fromarray(frame2)
-            
-            # Convert to PhotoImage
-            photo1 = ImageTk.PhotoImage(image=img1)
-            photo2 = ImageTk.PhotoImage(image=img2)
-            
-            # Update labels
-            self.left_video_label.config(image=photo1)
-            self.left_video_label.image = photo1
-            self.right_video_label.config(image=photo2)
-            self.right_video_label.image = photo2
-            
+            self._update_gui_frames(frame1, frame2)
+
             # Schedule the next frame update
             self.after_id = self.master.after(33, self.update_frames)  # ~30 fps
         else:
             if self.verbose:
                 print("Error reading frames.")
             self.restart_videos()
+
+    def on_progress_click(self, event):
+        """Handle clicks on the progress bar to seek the video."""
+        if self.cap1 is None:
+            return
+
+        clicked_x = event.x
+        width = self.progress.winfo_width()
+        if width == 0:
+            return
+        progress_percentage = clicked_x / width
+        total_frames = self.cap1.get(cv2.CAP_PROP_FRAME_COUNT)
+        new_frame = int(total_frames * progress_percentage)
+        
+        self.set_frame(new_frame)
+
+    def set_frame(self, frame_number):
+        """Set the videos to a specific frame."""
+        if self.cap1 is None or self.cap2 is None:
+            return
+            
+        self.cap1.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        self.cap2.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+        ret1, frame1 = self.cap1.read()
+        ret2, frame2 = self.cap2.read()
+
+        if ret1 and ret2:
+            self._update_gui_frames(frame1, frame2)
+        else:
+            if self.verbose:
+                print("Error reading frames during seek.")
 
     def left_wins(self):
         self.record_winner('left')
@@ -256,6 +317,9 @@ class VideoLabelerApp:
 
     def declare_equal(self):
         self.record_winner('equal')
+
+    def skip_pair(self):
+        self.load_next_videos()
 
     def record_winner(self, winner):
         """Record the winner of the current pair."""
