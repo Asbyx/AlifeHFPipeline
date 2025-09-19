@@ -53,8 +53,6 @@ class Simulator:
         Example usage:
             save_output(output, "out/profile/outputs/output_number1")
             It is expected that the output will be saved in "out/profile/outputs/output_number1<extension chosen by the user>"
-
-        Note: we do not ask for a load_output method, as the the loading of the outputs cannot be automated, since those outputs can be very big data. Therefore we let the user implement the loading in the Rewarder, from the paths given by the TrainingDataset.
         """
         raise NotImplementedError("Simulator.save_output must be implemented in inheriting class")
 
