@@ -225,6 +225,10 @@ class QuadLabelerApp:
         self.current_hashes = []
         self.video_widgets = []
         
+        # For progress bar
+        self.progress = None
+        self.progress_after_id = None
+        
         # Relationships between adjacent videos (e.g., '<' or '=')
         # For 4 videos, there are 3 relationships. Default to '<'.
         self.relationships = ['<'] * 3 
@@ -269,14 +273,21 @@ class QuadLabelerApp:
         self.video_controls_frame = tk.Frame(self.master)
         self.video_controls_frame.pack(pady=5)
 
-        self.prev_frame_button = tk.Button(self.video_controls_frame, text="< Prev Frame", command=self.prev_frame)
+        buttons_control_frame = tk.Frame(self.video_controls_frame)
+        buttons_control_frame.pack()
+
+        self.prev_frame_button = tk.Button(buttons_control_frame, text="< Prev Frame", command=self.prev_frame)
         self.prev_frame_button.pack(side=tk.LEFT, padx=5)
 
-        self.play_pause_button = tk.Button(self.video_controls_frame, text="Play/Pause", command=self.toggle_play_pause)
+        self.play_pause_button = tk.Button(buttons_control_frame, text="Play/Pause", command=self.toggle_play_pause)
         self.play_pause_button.pack(side=tk.LEFT, padx=5)
 
-        self.next_frame_button = tk.Button(self.video_controls_frame, text="Next Frame >", command=self.next_frame)
+        self.next_frame_button = tk.Button(buttons_control_frame, text="Next Frame >", command=self.next_frame)
         self.next_frame_button.pack(side=tk.LEFT, padx=5)
+
+        self.progress = ttk.Progressbar(self.video_controls_frame, orient="horizontal", length=1200, mode="determinate")
+        self.progress.pack(pady=5)
+        self.progress.bind("<Button-1>", self.on_progress_click)
         
         # Create frame for action buttons
         self.button_frame = tk.Frame(self.master)
@@ -335,10 +346,59 @@ class QuadLabelerApp:
     
     def toggle_play_pause(self):
         """Toggle the playing state of the videos."""
+        if not self.video_widgets:
+            return
+
+        is_currently_playing = self.video_widgets[0].is_playing
+        
         for widget in self.video_widgets:
-            widget.is_playing = not widget.is_playing
+            widget.is_playing = not is_currently_playing
             if widget.is_playing:
                 widget.update_frame()
+
+        if not is_currently_playing: # If we just started playing
+            self.update_progress_bar()
+        else: # If we just paused
+            if self.progress_after_id:
+                self.master.after_cancel(self.progress_after_id)
+                self.progress_after_id = None
+
+    def update_progress_bar(self):
+        """Update the progress bar to match the current video frame."""
+        if self.video_widgets and self.video_widgets[0].is_playing:
+            current_frame = self.video_widgets[0].cap.get(cv2.CAP_PROP_POS_FRAMES)
+            self.progress['value'] = current_frame
+            self.progress_after_id = self.master.after(100, self.update_progress_bar)
+        else:
+            self.progress_after_id = None
+
+    def on_progress_click(self, event):
+        """Handle clicks on the progress bar to seek the video."""
+        if not self.video_widgets:
+            return
+
+        clicked_x = event.x
+        width = self.progress.winfo_width()
+        if width == 0:
+            return
+        progress_percentage = clicked_x / width
+        total_frames = self.video_widgets[0].cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        new_frame = int(total_frames * progress_percentage)
+        
+        self.set_frame(new_frame)
+
+    def set_frame(self, frame_number):
+        """Set all videos to a specific frame."""
+        if not self.video_widgets:
+            return
+        
+        for widget in self.video_widgets:
+            widget.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+            ret, frame = widget.cap.read()
+            if ret:
+                widget._display_frame(frame)
+        
+        self.progress['value'] = frame_number
 
     def next_frame(self):
         """Advance all videos by one frame."""
@@ -415,6 +475,12 @@ class QuadLabelerApp:
         
         # Create the video widgets
         self.create_video_widgets(video_paths)
+        if self.video_widgets:
+            total_frames = self.video_widgets[0].cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            self.progress['maximum'] = total_frames
+            self.progress['value'] = 0
+            if self.video_widgets[0].is_playing:
+                self.update_progress_bar()
     
     
     def create_video_widgets(self, video_paths):
@@ -661,6 +727,9 @@ class QuadLabelerApp:
         # Release video resources
         self.clear_video_widgets()
         
+        if self.progress_after_id:
+            self.master.after_cancel(self.progress_after_id)
+
         # Save managers
         self.pairs_manager.save()
         self.dataset_manager.save()
