@@ -37,13 +37,19 @@ class Generator:
     
     def save(self) -> None:
         """
-        Save the generator to the path
+        Save the generator to the path.
+
+        Note: the path is expected to be specified by the user. This function will be called as such: generator.save()
+        For example, one can define the path in the constructor of the inheriting class and use it here.
         """
         raise NotImplementedError("Generator.save must be implemented in inheriting class")
 
     def load(self) -> "Generator":
         """
-        Load the generator from the path
+        Load the generator from the path.
+        
+        Note: the path is expected to be specified by the user. This function will be called as such: generator.load()
+        For example, one can define the path in the constructor of the inheriting class and use it here.
 
         Returns:
             The loaded generator

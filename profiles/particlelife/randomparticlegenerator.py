@@ -52,6 +52,6 @@ class RandomParticleGenerator(Generator):
     def save(self) -> None:
         pass
     
-    def load(self, path: str) -> None:
+    def load(self) -> None:
         raise NotImplementedError("Not available for this generator.")
 

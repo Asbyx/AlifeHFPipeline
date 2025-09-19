@@ -34,12 +34,18 @@ class Rewarder:
     def save(self) -> None:
         """
         Save the rewarder.
+        
+        Note: the path is expected to be specified by the user. This function will be called as such: rewarder.save()
+        For example, one can define the path in the constructor of the inheriting class and use it here.
         """
         raise NotImplementedError("Rewarder.save must be implemented in inheriting class")
 
     def load(self) -> "Rewarder":
         """
         Load the rewarder.
+
+        Note: the path is expected to be specified by the user. This function will be called as such: rewarder.load()
+        For example, one can define the path in the constructor of the inheriting class and use it here.
 
         Returns:
             The loaded rewarder
