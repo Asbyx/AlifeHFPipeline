@@ -69,6 +69,9 @@ class LiveBenchmarkApp:
         self.save_button = tk.Button(self.button_frame, text="Save Video & Params", command=self.save_video)
         self.save_button.pack(side="left", padx=5)
 
+        self.save_snapshot_button = tk.Button(self.button_frame, text="Save Benchmark snapshot", command=self.save_benchmark_snapshot)
+        self.save_snapshot_button.pack(side="left", padx=5)
+
         self.prev_button = tk.Button(self.button_frame, text="Previous", command=self.show_previous)
         self.prev_button.pack(side="left", padx=5)
 
@@ -262,6 +265,118 @@ class LiveBenchmarkApp:
         # Update status and run new benchmark
         self.update_status("Rerolling benchmark...")
         self.run_benchmark()
+
+    def save_benchmark_snapshot(self):
+        """Saves a snapshot of the current benchmark."""
+        if not hasattr(self, 'videos') or not self.videos:
+            messagebox.showinfo("Info", "No videos available to save.")
+            return
+
+        from tkinter import filedialog
+        snapshot_path_str = filedialog.asksaveasfilename(
+            title="Save Benchmark Snapshot As",
+            initialdir=str(Path(self.out_paths.get('root', '.')) / "benchmarks"),
+            defaultextension="",
+        )
+
+        if not snapshot_path_str:
+            return
+
+        snapshot_path = Path(snapshot_path_str)
+        
+        should_overwrite = False
+        if snapshot_path.exists():
+            if messagebox.askyesno("Overwrite?", f"The destination '{snapshot_path.name}' already exists. Do you want to overwrite it?"):
+                should_overwrite = True
+            else:
+                return
+        
+        # Create and show progress window
+        progress_window = tk.Toplevel(self.master)
+        progress_window.title("Saving Snapshot")
+        
+        self.master.update_idletasks()
+        master_x = self.master.winfo_x()
+        master_y = self.master.winfo_y()
+        master_w = self.master.winfo_width()
+        master_h = self.master.winfo_height()
+        prog_w = 400
+        prog_h = 120
+        prog_x = master_x + (master_w - prog_w) // 2
+        prog_y = master_y + (master_h - prog_h) // 2
+        progress_window.geometry(f"{prog_w}x{prog_h}+{prog_x}+{prog_y}")
+        progress_window.transient(self.master)
+        progress_window.grab_set()
+
+        status_label = ttk.Label(progress_window, text="Saving benchmark snapshot...")
+        status_label.pack(pady=10, padx=10)
+
+        progress_bar = ttk.Progressbar(progress_window, orient="horizontal", length=350, mode="determinate")
+        progress_bar.pack(pady=5, padx=10)
+        
+        # Start saving in a new thread
+        threading.Thread(
+            target=self._save_snapshot_worker,
+            args=(snapshot_path, should_overwrite, progress_window, progress_bar, status_label),
+            daemon=True
+        ).start()
+
+    def _save_snapshot_worker(self, snapshot_path, should_overwrite, progress_window, progress_bar, status_label):
+        """Worker thread to save the benchmark snapshot."""
+        try:
+            # Create directories
+            videos_dir = snapshot_path / "videos"
+            params_dir = snapshot_path / "parameters"
+            
+            if snapshot_path.exists() and should_overwrite:
+                shutil.rmtree(snapshot_path)
+            
+            snapshot_path.mkdir(parents=True, exist_ok=False)
+            videos_dir.mkdir()
+            params_dir.mkdir()
+
+            num_videos = len(self.videos)
+            if progress_window.winfo_exists():
+                 progress_window.after(0, lambda: progress_bar.config(maximum=num_videos))
+
+            # Data is already sorted by score (desc) in benchmark_process
+            for i, (score, video_path, param) in enumerate(zip(self.scores, self.videos, self.params)):
+                if not progress_window.winfo_exists(): # Check if user closed the window
+                    print("Snapshot saving cancelled by user.")
+                    shutil.rmtree(snapshot_path)
+                    return
+
+                rank = i + 1
+                
+                # Format filenames
+                base_filename = f"{rank:02d}_score_{score:.4f}"
+                video_filename = base_filename + ".mp4"
+                
+                # Copy video
+                shutil.copy2(video_path, videos_dir / video_filename)
+                
+                # Save parameter
+                self.simulator.save_param(param, params_dir / base_filename)
+                
+                # Update progress bar
+                if progress_window.winfo_exists():
+                    progress_window.after(0, lambda i=i: progress_bar.config(value=i + 1))
+
+            if progress_window.winfo_exists():
+                progress_window.after(0, lambda: status_label.config(text="Snapshot saved successfully!"))
+
+        except Exception as e:
+            error_message = f"Failed to save snapshot: {e}"
+            print(error_message)
+            traceback.print_exc()
+            if progress_window.winfo_exists():
+                progress_window.after(0, lambda: status_label.config(text=error_message))
+        
+        finally:
+            if progress_window.winfo_exists():
+                close_button = ttk.Button(progress_window, text="Close", command=progress_window.destroy)
+                progress_window.after(0, lambda: close_button.pack(pady=10))
+                progress_window.after(0, progress_window.grab_release)
 
     def on_close(self):
         """Handle window close event."""
