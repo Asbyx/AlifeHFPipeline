@@ -79,6 +79,7 @@ class VideoLabelerApp:
         self.progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
         self.progress.pack(padx=5)
         self.progress['value'] = 0
+        self.progress.bind("<Button-1>", self.on_progress_click)
 
         # Add play/pause button
         self.play_pause_button = tk.Button(self.progress_frame, text="Play/Pause", command=self.toggle_play_pause)
@@ -178,6 +179,32 @@ class VideoLabelerApp:
         # Start playing the videos
         self.play_videos()
 
+    def _update_gui_frames(self, frame1, frame2):
+        """Helper to update the GUI with new frames."""
+        # Convert frames from BGR to RGB
+        frame1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
+        frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
+        
+        # Resize frames if needed
+        frame1 = cv2.resize(frame1, self.frame_size)
+        frame2 = cv2.resize(frame2, self.frame_size)
+        
+        # Convert to PIL Image
+        img1 = Image.fromarray(frame1)
+        img2 = Image.fromarray(frame2)
+        
+        # Convert to PhotoImage
+        photo1 = ImageTk.PhotoImage(image=img1)
+        photo2 = ImageTk.PhotoImage(image=img2)
+        
+        # Update labels
+        self.left_video_label.config(image=photo1)
+        self.left_video_label.image = photo1
+        self.right_video_label.config(image=photo2)
+        self.right_video_label.image = photo2
+        
+        self.progress['value'] = self.cap1.get(cv2.CAP_PROP_POS_FRAMES)
+
     def prompt_generate_new_pairs(self):
         """Prompt the user to generate new pairs."""
         num_pairs = simpledialog.askinteger("Generate Pairs", "No more pairs available. How many new simulations to run ?", minvalue=1, parent=self.master)
@@ -234,29 +261,7 @@ class VideoLabelerApp:
             ret2, frame2 = self.cap2.read()
 
         if ret1 and ret2:
-            # Convert frames from BGR to RGB
-            frame1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
-            frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2RGB)
-            
-            # Resize frames if needed
-            frame1 = cv2.resize(frame1, self.frame_size)
-            frame2 = cv2.resize(frame2, self.frame_size)
-            
-            # Convert to PIL Image
-            img1 = Image.fromarray(frame1)
-            img2 = Image.fromarray(frame2)
-            
-            # Convert to PhotoImage
-            photo1 = ImageTk.PhotoImage(image=img1)
-            photo2 = ImageTk.PhotoImage(image=img2)
-            
-            # Update labels
-            self.left_video_label.config(image=photo1)
-            self.left_video_label.image = photo1
-            self.right_video_label.config(image=photo2)
-            self.right_video_label.image = photo2
-            
-            self.progress['value'] = self.cap1.get(cv2.CAP_PROP_POS_FRAMES)
+            self._update_gui_frames(frame1, frame2)
 
             # Schedule the next frame update
             self.after_id = self.master.after(33, self.update_frames)  # ~30 fps
@@ -264,6 +269,38 @@ class VideoLabelerApp:
             if self.verbose:
                 print("Error reading frames.")
             self.restart_videos()
+
+    def on_progress_click(self, event):
+        """Handle clicks on the progress bar to seek the video."""
+        if self.cap1 is None:
+            return
+
+        clicked_x = event.x
+        width = self.progress.winfo_width()
+        if width == 0:
+            return
+        progress_percentage = clicked_x / width
+        total_frames = self.cap1.get(cv2.CAP_PROP_FRAME_COUNT)
+        new_frame = int(total_frames * progress_percentage)
+        
+        self.set_frame(new_frame)
+
+    def set_frame(self, frame_number):
+        """Set the videos to a specific frame."""
+        if self.cap1 is None or self.cap2 is None:
+            return
+            
+        self.cap1.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        self.cap2.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+        ret1, frame1 = self.cap1.read()
+        ret2, frame2 = self.cap2.read()
+
+        if ret1 and ret2:
+            self._update_gui_frames(frame1, frame2)
+        else:
+            if self.verbose:
+                print("Error reading frames during seek.")
 
     def left_wins(self):
         self.record_winner('left')
