@@ -107,6 +107,9 @@ class VideoLabelerApp:
         self.skip_button = tk.Button(self.button_frame, text="Skip", command=self.skip_pair)
         self.skip_button.pack(side="left", padx=2)
 
+        self.undo_button = tk.Button(self.button_frame, text="Undo", command=self.previous_pair)
+        self.undo_button.pack(side="left", padx=2)
+
         self.generate_button = tk.Button(self.button_frame, text="Generate New Pairs", command=self.generate_new_pairs_dialog)
         self.generate_button.pack(side="left", padx=5)
 
