@@ -44,7 +44,8 @@ class VideoLabelerApp:
         self.pairs_manager = pairs_manager
         self.verbose = verbose
         self.frame_size = frame_size
-        
+
+        self.is_playing = True
         self.master = master
         self.after_id = None
         self.cap1 = None
@@ -78,6 +79,10 @@ class VideoLabelerApp:
         self.progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
         self.progress.pack(padx=5)
         self.progress['value'] = 0
+
+        # Add play/pause button
+        self.play_pause_button = tk.Button(self.progress_frame, text="Play/Pause", command=self.toggle_play_pause)
+        self.play_pause_button.pack(side="left", padx=5)
 
         # Add pair info label
         self.pair_info_frame = tk.Frame(self.master)
@@ -124,6 +129,12 @@ class VideoLabelerApp:
         # Add a label to display keybindings
         self.keybindings_label = tk.Label(self.keybindings_frame, text="Keybindings:\nLeft Arrow: Left Wins\nRight Arrow: Right Wins\nDown Arrow: Equal\nSpace: Restart Videos\nBackspace: Previous Pair", justify="left")
         self.keybindings_label.pack()
+
+    def toggle_play_pause(self):
+        """Toggle the playing state of the videos."""
+        self.is_playing = not self.is_playing
+        if self.is_playing:
+            self.update_frames()
 
     def bind_keys(self):
         self.master.bind('<Left>', lambda event: self.left_wins())
@@ -204,6 +215,9 @@ class VideoLabelerApp:
 
     def update_frames(self):
         """Update the video frames."""
+        if not self.is_playing:
+            return
+        
         ret1, frame1 = self.cap1.read()
         ret2, frame2 = self.cap2.read()
 
