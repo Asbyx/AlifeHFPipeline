@@ -14,10 +14,11 @@ from pathlib import Path
 class LiveBenchmarkApp:
     """App for live benchmarking with auto-generated simulations and rewarder scoring."""
     
-    def __init__(self, master: tk.Toplevel, simulator: Simulator, generator: Generator, 
+    def __init__(self, master: tk.Toplevel, number_of_videos: int, simulator: Simulator, generator: Generator, 
                  rewarder: Rewarder, out_paths: dict, frame_size: tuple = (300, 300),
                  on_close=None) -> None:
         self.master = master
+        self.number_of_videos = number_of_videos
         self.simulator = simulator
         self.generator = generator
         self.rewarder = rewarder
@@ -90,7 +91,7 @@ class LiveBenchmarkApp:
         if self._is_closing: return
         self.update_status("Generating parameters...")
         try:
-            self.params = self.generator.generate(10)
+            self.params = self.generator.generate(self.number_of_videos)
         except Exception as e:
             print(f"Error during parameter generation: {e}")
             self.update_status("Error during generation.") # update_status will check _is_closing
@@ -103,7 +104,7 @@ class LiveBenchmarkApp:
             print("!!! WARNING !!!: Generator generated at least two identical parameters.")
             # Filter out the identical parameters
             self.params = [self.params[i] for i in range(len(self.params)) if not any(str(self.params[i]) == str(self.params[j]) for j in range(i+1, len(self.params)))]
-            print(f"Unique parameters: {len(self.params)}, over 10 generated.")
+            print(f"Unique parameters: {len(self.params)}, over {self.number_of_videos} generated.")
             print("="*50 + "\n")
         if self._is_closing: return
 
@@ -1292,6 +1293,9 @@ def launch_benchmarker(simulator: Simulator, generator: Generator, rewarder: Rew
     choice = input("Choose an option: ")
 
     if choice == '1':
+        number_of_videos = input("Enter the number of simulations that will be used: ")
+        number_of_videos = int(number_of_videos)
+
         print("Launching Live Benchmark GUI...")
         root = tk.Tk()
         root.withdraw() # Hide the root window
@@ -1300,6 +1304,7 @@ def launch_benchmarker(simulator: Simulator, generator: Generator, rewarder: Rew
             root.destroy()
         live_app = LiveBenchmarkApp(
             tk.Toplevel(root),
+            number_of_videos,
             simulator,
             generator,
             rewarder,
