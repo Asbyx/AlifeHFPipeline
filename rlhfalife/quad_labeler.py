@@ -384,6 +384,8 @@ class QuadLabelerApp:
             self.progress['value'] = current_frame
             self.progress_after_id = self.master.after(100, self.update_progress_bar)
         else:
+            if self.progress_after_id:
+                self.master.after_cancel(self.progress_after_id)
             self.progress_after_id = None
 
     def on_progress_click(self, event):
