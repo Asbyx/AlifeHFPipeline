@@ -75,11 +75,9 @@ class VideoLabelerApp:
         self.progress_frame.pack(pady=5)
 
         # Add progress bars to the new frame
-        self.left_progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
-        self.left_progress.pack(side="left", padx=5)
-
-        self.right_progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
-        self.right_progress.pack(side="right", padx=5)
+        self.progress = ttk.Progressbar(self.progress_frame, orient="horizontal", length=200, mode="determinate")
+        self.progress.pack(padx=5)
+        self.progress['value'] = 0
 
         # Add pair info label
         self.pair_info_frame = tk.Frame(self.master)
@@ -163,6 +161,9 @@ class VideoLabelerApp:
         # Update the pair info label
         self.pair_info_label.config(text=f"Pair {self.pairs_manager.get_nb_ranked_pairs()} of {self.pairs_manager.get_nb_pairs()}: {self.hash1} vs {self.hash2}")
         
+        self.progress['value'] = 0
+        self.progress['maximum'] = self.cap1.get(cv2.CAP_PROP_FRAME_COUNT)
+
         # Start playing the videos
         self.play_videos()
 
@@ -241,6 +242,8 @@ class VideoLabelerApp:
             self.right_video_label.config(image=photo2)
             self.right_video_label.image = photo2
             
+            self.progress['value'] = self.cap1.get(cv2.CAP_PROP_POS_FRAMES)
+
             # Schedule the next frame update
             self.after_id = self.master.after(33, self.update_frames)  # ~30 fps
         else:
