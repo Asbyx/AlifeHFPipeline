@@ -225,6 +225,7 @@ class QuadLabelerApp:
         self.current_hashes = []
         self.video_widgets = []
         self.ignored_quads = set()
+        self.history = []
         
         # For progress bar
         self.progress = None
@@ -300,10 +301,16 @@ class QuadLabelerApp:
                                       font=("Arial", 12, "bold"))
         self.submit_button.pack(side=tk.LEFT, padx=5)
         
+        # Skip button
         self.skip_button = tk.Button(self.button_frame, text="Skip Ranking",
                                      command=self.skip_ranking, padx=10, pady=5)
         self.skip_button.pack(side=tk.LEFT, padx=5)
         
+        # Undo button
+        self.undo_button = tk.Button(self.button_frame, text="Undo",
+                                     command=self.undo_ranking, padx=10, pady=5)
+        self.undo_button.pack(side=tk.LEFT, padx=5)
+
         # Add restart videos button
         self.restart_button = tk.Button(self.button_frame, text="Restart Videos", 
                                       command=self.restart_videos, padx=10, pady=5)
@@ -323,7 +330,7 @@ class QuadLabelerApp:
         self.key_frame.pack(side=tk.LEFT, padx=10)
         
         # Add keybindings label
-        key_text_col1 = "Keybindings:\nEnter: Submit Ranking\nSpace: Restart Videos\nEsc: Quit"
+        key_text_col1 = "Keybindings:\nEnter: Submit Ranking\nSpace: Restart Videos\nBackspace: Undo Ranking\nEsc: Quit"
         key_label_col1 = tk.Label(self.key_frame, text=key_text_col1, justify=tk.LEFT)
         key_label_col1.pack(side=tk.LEFT, anchor='n')
 
@@ -344,6 +351,7 @@ class QuadLabelerApp:
         """Bind keyboard shortcuts."""
         self.master.bind('<Return>', lambda event: self.submit_ranking())
         self.master.bind('s', lambda event: self.skip_ranking())
+        self.master.bind('<BackSpace>', lambda event: self.undo_ranking())
         self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<Escape>', lambda event: self.save_and_exit())
         self.master.bind('p', lambda event: self.toggle_play_pause())
@@ -422,6 +430,8 @@ class QuadLabelerApp:
     
     def load_next_videos(self):
         """Load the next set of 4 videos."""
+        self.history.append(self.current_hashes)
+
         # Get 4 hashes that have the fewest ranks and are not ranked together
         all_hashes = self.dataset_manager.get_all_hashes()        
         ranked_pairs_df = self.pairs_manager._get_ranked_pairs() # Renamed for clarity
@@ -695,6 +705,36 @@ class QuadLabelerApp:
             if self.verbose:
                 print(f"Added {ignored_hash_tuple} to ignored quads.")
             self.load_next_videos()
+
+    def undo_ranking(self):
+        """Undo the last ranking."""
+        if len(self.history) == 0:
+            messagebox.showinfo("Info", "No ranking to undo.")
+            return
+        self.current_hashes = self.history.pop()
+        self.relationships = ['<'] * (len(self.current_hashes) -1) # Reset relationships
+
+        # Clear any existing video widgets
+        self.clear_video_widgets()
+        
+        # Get the video paths
+        video_paths = self.dataset_manager.get_video_paths(self.current_hashes)
+        
+        # Check if all videos exist
+        if None in video_paths or not all(video_paths):
+            messagebox.showerror("Error", "One or more video files not found")
+            self.load_next_videos()
+            return
+        
+        # Create the video widgets
+        self.create_video_widgets(video_paths)
+        if self.video_widgets:
+            total_frames = self.video_widgets[0].cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            self.progress['maximum'] = total_frames
+            self.progress['value'] = 0
+            if self.video_widgets[0].is_playing:
+                self.update_progress_bar()
+            
 
     def restart_videos(self):
         """Restart all videos from the beginning."""
