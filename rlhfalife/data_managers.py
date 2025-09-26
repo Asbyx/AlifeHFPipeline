@@ -410,6 +410,10 @@ class PairsManager:
         """Get all ranked pairs (where winner is not null)."""
         return self.pairs_df[self.pairs_df['winner'].notnull()].reset_index(drop=True).copy()
     
+    def unranked_pairs_iterator(self) -> Iterator[Tuple[str, str]]:
+        """Get an iterator over all unranked pairs."""
+        return self._get_unranked_pairs()[['hash1', 'hash2']].itertuples(index=False, name=None)
+
     def set_winner(self, hash1: str, hash2: str, winner: float):
         """
         Set the winner for a pair.

@@ -54,6 +54,8 @@ class DraggableVideo(tk.Frame):
         self.on_drag_release = on_drag_release
         self.on_drag_motion = on_drag_motion
         self.is_dragging = False
+
+        self.is_playing = True
         
         # Create the video label
         self.video_label = tk.Label(self)
@@ -95,8 +97,23 @@ class DraggableVideo(tk.Frame):
         self.after_id = None
         self.update_frame()
     
+    def _display_frame(self, frame):
+        """Helper to display a frame."""
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame = cv2.resize(frame, self.frame_size)
+        img = Image.fromarray(frame)
+        photo = ImageTk.PhotoImage(image=img)
+        self.video_label.config(image=photo)
+        self.video_label.image = photo
+    
     def update_frame(self):
         """Update the video frame."""
+        if not self.is_playing:
+            if self.after_id:
+                self.after_cancel(self.after_id)
+                self.after_id = None
+            return
+        
         ret, frame = self.cap.read()
         
         if not ret:
@@ -104,21 +121,34 @@ class DraggableVideo(tk.Frame):
             ret, frame = self.cap.read()
             
         if ret:
-            # Convert and resize frame
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.resize(frame, self.frame_size)
+            self._display_frame(frame)
             
-            # Convert to PIL Image and then to PhotoImage
-            img = Image.fromarray(frame)
-            photo = ImageTk.PhotoImage(image=img)
-            
-            # Update label
-            self.video_label.config(image=photo)
-            self.video_label.image = photo
-            
-            # Schedule next update
-            self.after_id = self.after(33, self.update_frame)  # ~30 fps
+        self.after_id = self.after(33, self.update_frame)  # ~30 fps
     
+    def next_frame(self):
+        """Go to the next frame."""
+        if not self.cap.isOpened():
+            return
+        current_frame_pos = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+        total_frames = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
+
+        if current_frame_pos < total_frames:
+             ret, frame = self.cap.read()
+             if ret:
+                self._display_frame(frame)
+
+    def prev_frame(self):
+        """Go to the previous frame."""
+        if not self.cap.isOpened():
+            return
+        current_frame_pos = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+        new_pos = current_frame_pos - 2
+        if new_pos >= 0:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
+            ret, frame = self.cap.read()
+            if ret:
+                self._display_frame(frame)
+
     def update_rank(self, new_index):
         """Update the rank label to show new position."""
         self.index = new_index
@@ -161,6 +191,7 @@ class DraggableVideo(tk.Frame):
     
     def release_resources(self):
         """Release video resources."""
+        self.is_playing = False
         if self.after_id:
             self.after_cancel(self.after_id)
         if self.cap and self.cap.isOpened():
@@ -193,6 +224,12 @@ class QuadLabelerApp:
         self.current_videos = []
         self.current_hashes = []
         self.video_widgets = []
+        self.ignored_quads = set()
+        self.history = []
+        
+        # For progress bar
+        self.progress = None
+        self.progress_after_id = None
         
         # Relationships between adjacent videos (e.g., '<' or '=')
         # For 4 videos, there are 3 relationships. Default to '<'.
@@ -234,6 +271,26 @@ class QuadLabelerApp:
         self.videos_frame = tk.Frame(self.master)
         self.videos_frame.pack(padx=20, pady=10)
         
+        # Create a new frame for video controls
+        self.video_controls_frame = tk.Frame(self.master)
+        self.video_controls_frame.pack(pady=5)
+
+        buttons_control_frame = tk.Frame(self.video_controls_frame)
+        buttons_control_frame.pack()
+
+        self.prev_frame_button = tk.Button(buttons_control_frame, text="< Prev Frame", command=self.prev_frame)
+        self.prev_frame_button.pack(side=tk.LEFT, padx=5)
+
+        self.play_pause_button = tk.Button(buttons_control_frame, text="Play/Pause", command=self.toggle_play_pause)
+        self.play_pause_button.pack(side=tk.LEFT, padx=5)
+
+        self.next_frame_button = tk.Button(buttons_control_frame, text="Next Frame >", command=self.next_frame)
+        self.next_frame_button.pack(side=tk.LEFT, padx=5)
+
+        self.progress = ttk.Progressbar(self.video_controls_frame, orient="horizontal", length=1200, mode="determinate")
+        self.progress.pack(pady=5)
+        self.progress.bind("<Button-1>", self.on_progress_click)
+        
         # Create frame for action buttons
         self.button_frame = tk.Frame(self.master)
         self.button_frame.pack(pady=15)
@@ -244,6 +301,16 @@ class QuadLabelerApp:
                                       font=("Arial", 12, "bold"))
         self.submit_button.pack(side=tk.LEFT, padx=5)
         
+        # Skip button
+        self.skip_button = tk.Button(self.button_frame, text="Skip Ranking",
+                                     command=self.skip_ranking, padx=10, pady=5)
+        self.skip_button.pack(side=tk.LEFT, padx=5)
+        
+        # Undo button
+        self.undo_button = tk.Button(self.button_frame, text="Undo",
+                                     command=self.undo_ranking, padx=10, pady=5)
+        self.undo_button.pack(side=tk.LEFT, padx=5)
+
         # Add restart videos button
         self.restart_button = tk.Button(self.button_frame, text="Restart Videos", 
                                       command=self.restart_videos, padx=10, pady=5)
@@ -257,6 +324,19 @@ class QuadLabelerApp:
         # Create bottom frame for status and quit
         self.bottom_frame = tk.Frame(self.master)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+
+        # Create frame for keybindings
+        self.key_frame = tk.Frame(self.bottom_frame)
+        self.key_frame.pack(side=tk.LEFT, padx=10)
+        
+        # Add keybindings label
+        key_text_col1 = "Keybindings:\nEnter: Submit Ranking\nSpace: Restart Videos\nBackspace: Undo Ranking\nEsc: Quit"
+        key_label_col1 = tk.Label(self.key_frame, text=key_text_col1, justify=tk.LEFT)
+        key_label_col1.pack(side=tk.LEFT, anchor='n')
+
+        key_text_col2 = "\nLeft: Previous Frame\nRight: Next Frame\nP: Play/Pause\nS: Skip Ranking"
+        key_label_col2 = tk.Label(self.key_frame, text=key_text_col2, justify=tk.LEFT)
+        key_label_col2.pack(side=tk.LEFT, anchor='n', padx=10)
         
         # Add progress percentage label
         self.progress_label = tk.Label(self.bottom_frame, text="Progress: 0% (0/0)")
@@ -266,24 +346,94 @@ class QuadLabelerApp:
         self.quit_button = tk.Button(self.bottom_frame, text="Quit", 
                                     command=self.save_and_exit, padx=5, pady=2)
         self.quit_button.pack(side=tk.RIGHT, padx=10)
-        
-        # Create frame for keybindings
-        self.key_frame = tk.Frame(self.master)
-        self.key_frame.pack(side=tk.BOTTOM, pady=5)
-        
-        # Add keybindings label
-        key_text = "Keybindings:\nEnter: Submit Ranking\nSpace: Restart Videos\nEsc: Quit"
-        self.key_label = tk.Label(self.key_frame, text=key_text, justify=tk.LEFT)
-        self.key_label.pack()
     
     def bind_keys(self):
         """Bind keyboard shortcuts."""
         self.master.bind('<Return>', lambda event: self.submit_ranking())
+        self.master.bind('s', lambda event: self.skip_ranking())
+        self.master.bind('<BackSpace>', lambda event: self.undo_ranking())
         self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<Escape>', lambda event: self.save_and_exit())
+        self.master.bind('p', lambda event: self.toggle_play_pause())
+        self.master.bind('<Left>', lambda event: self.prev_frame())
+        self.master.bind('<Right>', lambda event: self.next_frame())
+    
+    def toggle_play_pause(self):
+        """Toggle the playing state of the videos."""
+        if not self.video_widgets:
+            return
+
+        is_currently_playing = self.video_widgets[0].is_playing
+        
+        for widget in self.video_widgets:
+            widget.is_playing = not is_currently_playing
+            if widget.is_playing:
+                widget.update_frame()
+
+        if not is_currently_playing: # If we just started playing
+            self.update_progress_bar()
+        else: # If we just paused
+            if self.progress_after_id:
+                self.master.after_cancel(self.progress_after_id)
+                self.progress_after_id = None
+
+    def update_progress_bar(self):
+        """Update the progress bar to match the current video frame."""
+        if self.video_widgets and self.video_widgets[0].is_playing:
+            current_frame = self.video_widgets[0].cap.get(cv2.CAP_PROP_POS_FRAMES)
+            self.progress['value'] = current_frame
+            self.progress_after_id = self.master.after(100, self.update_progress_bar)
+        else:
+            if self.progress_after_id:
+                self.master.after_cancel(self.progress_after_id)
+            self.progress_after_id = None
+
+    def on_progress_click(self, event):
+        """Handle clicks on the progress bar to seek the video."""
+        if not self.video_widgets:
+            return
+
+        clicked_x = event.x
+        width = self.progress.winfo_width()
+        if width == 0:
+            return
+        progress_percentage = clicked_x / width
+        total_frames = self.video_widgets[0].cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        new_frame = int(total_frames * progress_percentage)
+        
+        self.set_frame(new_frame)
+
+    def set_frame(self, frame_number):
+        """Set all videos to a specific frame."""
+        if not self.video_widgets:
+            return
+        
+        for widget in self.video_widgets:
+            widget.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+            ret, frame = widget.cap.read()
+            if ret:
+                widget._display_frame(frame)
+        
+        self.progress['value'] = frame_number
+
+    def next_frame(self):
+        """Advance all videos by one frame."""
+        for widget in self.video_widgets:
+            if widget.is_playing:
+                widget.is_playing = False # Pause first
+            widget.next_frame()
+
+    def prev_frame(self):
+        """Rewind all videos by one frame."""
+        for widget in self.video_widgets:
+            if widget.is_playing:
+                widget.is_playing = False # Pause first
+            widget.prev_frame()
     
     def load_next_videos(self):
         """Load the next set of 4 videos."""
+        self.history.append(self.current_hashes)
+
         # Get 4 hashes that have the fewest ranks and are not ranked together
         all_hashes = self.dataset_manager.get_all_hashes()        
         ranked_pairs_df = self.pairs_manager._get_ranked_pairs() # Renamed for clarity
@@ -303,19 +453,32 @@ class QuadLabelerApp:
             if h not in hash_rankings:
                 hash_rankings[h] = 0
         
-        # Choose 4 hashes that have the fewest ranks and are not ranked together
-        sorted_hash_rankings = sorted(hash_rankings.items(), key=lambda x: x[1])
+        def _find_next_quad(nodes, path, ignored, existing_pairs): # DFS to find a quad that is not ranked together or ignored
+            if len(path) == 4:
+                sorted_path = tuple(sorted(path))
+                if sorted_path not in ignored:
+                    return path
+                return None
 
-        best_hashes = []
-        for h, _ in sorted_hash_rankings:
-            if h not in best_hashes:
-                for h2 in best_hashes:
-                    if (h, h2) in ranked_pairs_df or (h2, h) in ranked_pairs_df:
-                        break
-                else:
-                    best_hashes.append(h)
-            if len(best_hashes) == 4:
-                break
+            # Try to extend the current path
+            for i, node in enumerate(nodes):
+                # Check compatibility with current path
+                is_compatible = all(tuple(sorted((node, p_node))) not in existing_pairs for p_node in path)
+                
+                if is_compatible:
+                    # Recurse with remaining nodes
+                    result = _find_next_quad(nodes[i+1:], path + [node], ignored, existing_pairs)
+                    if result:
+                        return result
+            return None
+
+        all_hashes_sorted = [h for h, _ in sorted(hash_rankings.items(), key=lambda x: (x[1], np.random.randint(100)))]
+        
+        best_hashes = _find_next_quad(all_hashes_sorted, [], self.ignored_quads, existing_pairs_set)
+
+        if best_hashes is None:
+            # If no quad is found, set it to an empty list to trigger video generation prompt
+            best_hashes = []
         
         if len(best_hashes) < 4:
             self.prompt_generate_new_videos()
@@ -343,6 +506,12 @@ class QuadLabelerApp:
         
         # Create the video widgets
         self.create_video_widgets(video_paths)
+        if self.video_widgets:
+            total_frames = self.video_widgets[0].cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            self.progress['maximum'] = total_frames
+            self.progress['value'] = 0
+            if self.video_widgets[0].is_playing:
+                self.update_progress_bar()
     
     
     def create_video_widgets(self, video_paths):
@@ -529,6 +698,46 @@ class QuadLabelerApp:
         self.load_next_videos()
         self.update_progress_percentage()
     
+    def skip_ranking(self):
+        """Add the current quad to the ignored list and load the next one."""
+        if len(self.current_hashes) == 4:
+            # Sort to ensure canonical representation
+            ignored_hash_tuple = tuple(sorted(self.current_hashes))
+            self.ignored_quads.add(ignored_hash_tuple)
+            if self.verbose:
+                print(f"Added {ignored_hash_tuple} to ignored quads.")
+            self.load_next_videos()
+
+    def undo_ranking(self):
+        """Undo the last ranking."""
+        if len(self.history) == 0:
+            messagebox.showinfo("Info", "No ranking to undo.")
+            return
+        self.current_hashes = self.history.pop()
+        self.relationships = ['<'] * (len(self.current_hashes) -1) # Reset relationships
+
+        # Clear any existing video widgets
+        self.clear_video_widgets()
+        
+        # Get the video paths
+        video_paths = self.dataset_manager.get_video_paths(self.current_hashes)
+        
+        # Check if all videos exist
+        if None in video_paths or not all(video_paths):
+            messagebox.showerror("Error", "One or more video files not found")
+            self.load_next_videos()
+            return
+        
+        # Create the video widgets
+        self.create_video_widgets(video_paths)
+        if self.video_widgets:
+            total_frames = self.video_widgets[0].cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            self.progress['maximum'] = total_frames
+            self.progress['value'] = 0
+            if self.video_widgets[0].is_playing:
+                self.update_progress_bar()
+            
+
     def restart_videos(self):
         """Restart all videos from the beginning."""
         for widget in self.video_widgets:
@@ -589,6 +798,9 @@ class QuadLabelerApp:
         # Release video resources
         self.clear_video_widgets()
         
+        if self.progress_after_id:
+            self.master.after_cancel(self.progress_after_id)
+
         # Save managers
         self.pairs_manager.save()
         self.dataset_manager.save()
