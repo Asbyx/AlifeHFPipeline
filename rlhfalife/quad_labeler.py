@@ -156,6 +156,7 @@ class DraggableVideo(ttk.Frame):
     
     def on_press(self, event):
         """Handle mouse button press event."""
+        self.config(cursor="hand2")
         self.is_dragging = True
         # Record the offset of the mouse click relative to the widget
         self.drag_start_x = event.x
@@ -181,6 +182,7 @@ class DraggableVideo(ttk.Frame):
     
     def on_release(self, event):
         """Handle mouse button release event."""
+        self.config(cursor="")
         if self.is_dragging:
             self.is_dragging = False
             # Reset appearance
@@ -585,20 +587,23 @@ class QuadLabelerApp:
     
     def on_drag_motion(self, source_widget, x, y):
         """Handle drag motion to provide visual feedback."""
-        # Find which widget is under the mouse cursor
         target_widget = self.find_widget_at_position(x, y)
         
-        # If we've moved to a different widget, update highlighting
-        if target_widget != self.highlight_widget and target_widget != source_widget:
-            # Remove previous highlighting
-            if self.highlight_widget and self.highlight_widget != self.drag_source:
-                self.highlight_widget.config(relief=tk.RAISED)
-            
-            # Add highlighting to new widget
-            if target_widget and target_widget != self.drag_source:
-                target_widget.config(relief=tk.RIDGE)  # Light green highlight
+        # If we are over a valid, different drop target
+        if target_widget and target_widget != self.drag_source and target_widget != self.highlight_widget:
+            # If we were previously highlighting another widget, swap back first
+            if self.highlight_widget:
+                self.swap_videos(source_widget, self.highlight_widget)
                 
+            # Swap with the new target to show a preview
+            self.swap_videos(source_widget, target_widget)
             self.highlight_widget = target_widget
+            
+        # If we have moved off a highlighted widget to an empty space
+        elif not target_widget and self.highlight_widget:
+            # Swap back to original position
+            self.swap_videos(source_widget, self.highlight_widget)
+            self.highlight_widget = None
     
     def find_widget_at_position(self, x, y):
         """Find which video widget is at the given screen position."""
@@ -616,19 +621,13 @@ class QuadLabelerApp:
     
     def end_drag(self, source_widget, event):
         """Handle the end of a drag operation."""
-        # Find which widget we're over
-        x, y = event.x_root, event.y_root
-        target_widget = self.find_widget_at_position(x, y)
-        
-        # Clean up any highlighting
-        if self.highlight_widget and self.highlight_widget != self.drag_source:
-            self.highlight_widget.config(relief=tk.RAISED)
-        
+        # The swap is now a preview, so the final action is just to confirm.
+        # The widgets are already in the right place if highlight_widget is set.
+        self.drag_source = None
         self.highlight_widget = None
-        
-        if target_widget and target_widget != source_widget:
-            # Swap the widgets in the display
-            self.swap_videos(source_widget, target_widget)
+        # Reset cursor on all widgets
+        for widget in self.video_widgets:
+            widget.config(cursor="")
     
     def swap_videos(self, widget1, widget2):
         """Swap two video widgets in the display and update relationships."""
