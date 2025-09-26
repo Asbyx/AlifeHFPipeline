@@ -474,7 +474,7 @@ class QuadLabelerApp:
                         return result
             return None
 
-        all_hashes_sorted = [h for h, _ in sorted(hash_rankings.items(), key=lambda x: x[1])]
+        all_hashes_sorted = [h for h, _ in sorted(hash_rankings.items(), key=lambda x: (x[1], np.random.randint(100)))]
         
         best_hashes = _find_next_quad(all_hashes_sorted, [], self.ignored_quads, existing_pairs_set)
 

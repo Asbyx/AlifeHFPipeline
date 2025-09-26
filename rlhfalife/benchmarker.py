@@ -360,7 +360,7 @@ class LiveBenchmarkApp:
         progress_window = tk.Toplevel(self.master)
         progress_window.title("Saving Snapshot")
         DarkThemeManager.apply_to_toplevel(progress_window)
-        
+
         self.master.update_idletasks()
         master_x = self.master.winfo_x()
         master_y = self.master.winfo_y()
@@ -375,6 +375,7 @@ class LiveBenchmarkApp:
         progress_window.grab_set()
 
         status_label = ttk.Label(progress_window, text="Saving benchmark snapshot...", style='Dark.TLabel')
+
         status_label.pack(pady=10, padx=10)
 
         progress_bar = ttk.Progressbar(progress_window, orient="horizontal", length=350, mode="determinate")
@@ -422,7 +423,7 @@ class LiveBenchmarkApp:
                 shutil.copy2(video_path, videos_dir / video_filename)
                 
                 # Save parameter
-                self.simulator.save_param(param, params_dir / base_filename)
+                self.simulator.save_param(param, str(params_dir / base_filename))
                 
                 # Update progress bar
                 if progress_window.winfo_exists():
