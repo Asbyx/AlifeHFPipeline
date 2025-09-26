@@ -186,6 +186,7 @@ def print_menu():
     print("  7. Reload new code")
     print("  8. Reload models and data managers (updates config)")
     print("  9. Change frame size")
+    print(" 10. Custom script")
     print("\n--- Data Management ---")
     print("  A. Analyze training dataset")
     print("  B. Reset labels (keep simulations and pairs)")
@@ -238,6 +239,7 @@ def main():
         "A": lambda: analyze_dataset_action(dataset_manager, pairs_manager),
         "B": lambda: reset_labels_action(pairs_manager),
         "C": lambda: reset_config_action(out_path, profile, config),
+        "10": lambda: loader.custom_script(generator, rewarder, simulator),
     }
     
     while True:

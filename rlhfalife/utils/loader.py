@@ -25,3 +25,11 @@ class Loader:
             config: Dictionary containing the config of the experiment
         """
         raise NotImplementedError("Loader.load must be implemented in inheriting class") 
+
+    def custom_script(self, generator: "Generator", rewarder: "Rewarder", simulator: "Simulator") -> None:
+        """
+        Custom script to run after the generator, rewarder and simulator are loaded.
+
+        You can use this function to do any custom script, like testing, using your functions, print values,etc.
+        """
+        raise NotImplementedError("Loader.custom_script must be implemented in inheriting class")
