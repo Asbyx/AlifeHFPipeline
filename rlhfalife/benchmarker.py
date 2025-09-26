@@ -52,19 +52,22 @@ class LiveBenchmarkApp:
     
     def create_widgets(self):
         """Create the UI widgets for the live benchmark app."""
-        self.status_label = ttk.Label(self.master, text="Initializing...")
+        main_frame = ttk.Frame(self.master)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.status_label = ttk.Label(main_frame, text="Initializing...")
         self.status_label.pack(pady=10)
 
-        self.video_frame = ttk.Frame(self.master)
+        self.video_frame = ttk.Frame(main_frame)
         self.video_frame.pack()
 
         self.video_label = ttk.Label(self.video_frame)
         self.video_label.pack()
 
-        self.score_label = ttk.Label(self.master, text="Score: ")
+        self.score_label = ttk.Label(main_frame, text="Score: ")
         self.score_label.pack(pady=5)
 
-        self.button_frame = ttk.Frame(self.master)
+        self.button_frame = ttk.Frame(main_frame)
         self.button_frame.pack(pady=10)
 
         self.save_button = ttk.Button(self.button_frame, text="Save Video & Params", command=self.save_video)
