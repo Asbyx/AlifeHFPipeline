@@ -71,7 +71,7 @@ class Simulator:
         """
         raise NotImplementedError("Simulator.save_video_from_output must be implemented in inheriting class")
 
-    def save_param(self, param: Any, path: str) -> str:
+    def save_param(self, param: Any, path: str) -> None:
         """
         Save the param to the path.
         
