@@ -12,19 +12,27 @@ class Rewarder:
     #-------- To implement --------#
     def rank(self, data: List[Any]) -> List[float]:
         """
-        Rank the data. 
+        Given a list of outputs of a Simulator, this function is expected to return a list of scores, one for each output.
+        The function name is "rank" for historical reasons, but "score" would be more appropriate.
         
         Args:
             data: Data to rank, array-like of outputs of a Simulator.
 
         Returns:
-            An array-like of the same length as data, where the i-th element is the reward for the i-th sample.
+            An array-like of the same length as data, where the i-th element is the score for the i-th sample.
         """
         raise NotImplementedError("Rewarder.rank must be implemented in inheriting class")
 
     def train(self, dataset: "TrainingDataset") -> None:
         """
-        Train the rewarder on the pairs in pairs_manager
+        Train the rewarder on the ranked pairs.  
+        
+        The dataset delivers triplets of (path_to_output_1, path_to_output_2, winner). Usage example:
+        ```
+        for path_to_output_1, path_to_output_2, winner in dataset:
+            rewarder.rank([path_to_output_1, path_to_output_2])
+            ...
+        ```
 
         Args:
             dataset: TrainingDataset instance containing the dataset.

@@ -1,0 +1,10 @@
+easydict
+nltk
+numpy
+pygame
+pyperlin
+showtens
+torch
+torchenhanced
+tqdm
+transformers

@@ -29,7 +29,7 @@ class Simulator:
     def run(self, params: List[Any]) -> List[Any]:
         """
         Run the simulation with the given parameters.
-        The outputs must be viewable by the Rewarder.
+        The outputs must be viewable by the Rewarder (in the sense that the Rewarder should be able to score them).
 
         Args:
             params: Parameters to run the simulation with
@@ -71,7 +71,7 @@ class Simulator:
         """
         raise NotImplementedError("Simulator.save_video_from_output must be implemented in inheriting class")
 
-    def save_param(self, param: Any, path: str) -> str:
+    def save_param(self, param: Any, path: str) -> None:
         """
         Save the param to the path.
         

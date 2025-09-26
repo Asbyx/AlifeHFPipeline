@@ -27,7 +27,7 @@ class Generator:
 
     def train(self, simulator: "Simulator", rewarder: "Rewarder") -> None:
         """
-        Train the generator using the rewarder
+        Train the generator
 
         Args:
             simulator: Simulator for which the generator is trained
