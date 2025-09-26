@@ -2,5 +2,8 @@ numpy
 opencv_python
 pandas
 Pillow
+scipy
+sv_ttk
 torch
-sv-ttk
+tqdm
+wandb
