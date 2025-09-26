@@ -8,6 +8,7 @@ import threading
 from collections import Counter
 from rlhfalife.utils import Simulator
 from rlhfalife.data_managers import DatasetManager, PairsManager
+import sv_ttk
 
 def launch_quad_labeler(simulator: Simulator, dataset_manager: DatasetManager, pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300)) -> None:
     """
@@ -23,11 +24,12 @@ def launch_quad_labeler(simulator: Simulator, dataset_manager: DatasetManager, p
     Note: executes in the main thread.
     """
     root = tk.Tk()
+    sv_ttk.set_theme("dark")
     app = QuadLabelerApp(root, simulator, dataset_manager, pairs_manager, verbose, frame_size)
     root.protocol("WM_DELETE_WINDOW", app.save_and_exit)
     root.mainloop()
 
-class DraggableVideo(tk.Frame):
+class DraggableVideo(ttk.Frame):
     """A draggable video widget that can be reordered via drag and drop."""
     
     def __init__(self, parent, video_path, index, frame_size, hash_value, on_drag_start=None, on_drag_release=None, on_drag_motion=None):
@@ -44,7 +46,8 @@ class DraggableVideo(tk.Frame):
             on_drag_release: Callback function when drag ends
             on_drag_motion: Callback function when dragging
         """
-        super().__init__(parent, relief=tk.RAISED, borderwidth=2)
+        super().__init__(parent)
+        self.config(relief=tk.RAISED)
         self.parent = parent
         self.index = index
         self.frame_size = frame_size
@@ -58,15 +61,15 @@ class DraggableVideo(tk.Frame):
         self.is_playing = True
         
         # Create the video label
-        self.video_label = tk.Label(self)
+        self.video_label = ttk.Label(self)
         self.video_label.pack(padx=5, pady=5)
         
         # Create hash label
-        self.hash_label = tk.Label(self, text=f"Hash: {hash_value}", font=("Arial", 8), wraplength=frame_size[0]-10)
+        self.hash_label = ttk.Label(self, text=f"Hash: {hash_value}", font=("Arial", 8), wraplength=frame_size[0]-10)
         self.hash_label.pack(pady=(0, 5))
         
         # Create ranking indicator
-        self.rank_label = tk.Label(self, text=f"#{index+1}", font=("Arial", 14, "bold"))
+        self.rank_label = ttk.Label(self, text=f"#{index+1}", font=("Arial", 14, "bold"))
         self.rank_label.pack(pady=5)
         
         # Open the video
@@ -89,9 +92,6 @@ class DraggableVideo(tk.Frame):
         # Track mouse offset for dragging
         self.drag_start_x = 0
         self.drag_start_y = 0
-        
-        # For drag and drop feedback
-        self.orig_background = self.cget("background")
         
         # Start playing the video
         self.after_id = None
@@ -156,6 +156,7 @@ class DraggableVideo(tk.Frame):
     
     def on_press(self, event):
         """Handle mouse button press event."""
+        self.config(cursor="hand2")
         self.is_dragging = True
         # Record the offset of the mouse click relative to the widget
         self.drag_start_x = event.x
@@ -164,7 +165,7 @@ class DraggableVideo(tk.Frame):
             self.on_drag_start(self)
         
         # Change appearance to indicate dragging
-        self.config(relief=tk.SUNKEN, background="#ddddff")  # Highlight with light blue background
+        self.config(relief=tk.SUNKEN)
     
     def on_motion(self, event):
         """Handle mouse motion event."""
@@ -181,10 +182,11 @@ class DraggableVideo(tk.Frame):
     
     def on_release(self, event):
         """Handle mouse button release event."""
+        self.config(cursor="")
         if self.is_dragging:
             self.is_dragging = False
             # Reset appearance
-            self.config(relief=tk.RAISED, background=self.orig_background)
+            self.config(relief=tk.RAISED)
             
             if self.on_drag_release:
                 self.on_drag_release(self, event)
@@ -259,32 +261,32 @@ class QuadLabelerApp:
     def create_widgets(self):
         """Create the main UI widgets."""
         # Create title and instructions
-        self.title_frame = tk.Frame(self.master)
+        self.title_frame = ttk.Frame(self.master)
         self.title_frame.pack(pady=10)
         
-        title_label = tk.Label(self.title_frame, 
+        title_label = ttk.Label(self.title_frame, 
                               text="Drag videos to order. Use buttons (<, =) to set relationships.",
                               font=("Arial", 14))
         title_label.pack()
         
         # Create main frame for videos
-        self.videos_frame = tk.Frame(self.master)
+        self.videos_frame = ttk.Frame(self.master)
         self.videos_frame.pack(padx=20, pady=10)
         
         # Create a new frame for video controls
-        self.video_controls_frame = tk.Frame(self.master)
+        self.video_controls_frame = ttk.Frame(self.master)
         self.video_controls_frame.pack(pady=5)
 
-        buttons_control_frame = tk.Frame(self.video_controls_frame)
+        buttons_control_frame = ttk.Frame(self.video_controls_frame)
         buttons_control_frame.pack()
 
-        self.prev_frame_button = tk.Button(buttons_control_frame, text="< Prev Frame", command=self.prev_frame)
+        self.prev_frame_button = ttk.Button(buttons_control_frame, text="< Prev Frame", command=self.prev_frame)
         self.prev_frame_button.pack(side=tk.LEFT, padx=5)
 
-        self.play_pause_button = tk.Button(buttons_control_frame, text="Play/Pause", command=self.toggle_play_pause)
+        self.play_pause_button = ttk.Button(buttons_control_frame, text="Play/Pause", command=self.toggle_play_pause)
         self.play_pause_button.pack(side=tk.LEFT, padx=5)
 
-        self.next_frame_button = tk.Button(buttons_control_frame, text="Next Frame >", command=self.next_frame)
+        self.next_frame_button = ttk.Button(buttons_control_frame, text="Next Frame >", command=self.next_frame)
         self.next_frame_button.pack(side=tk.LEFT, padx=5)
 
         self.progress = ttk.Progressbar(self.video_controls_frame, orient="horizontal", length=1200, mode="determinate")
@@ -292,60 +294,60 @@ class QuadLabelerApp:
         self.progress.bind("<Button-1>", self.on_progress_click)
         
         # Create frame for action buttons
-        self.button_frame = tk.Frame(self.master)
+        self.button_frame = ttk.Frame(self.master)
         self.button_frame.pack(pady=15)
         
         # Submit button
-        self.submit_button = tk.Button(self.button_frame, text="Submit Ranking", 
-                                      command=self.submit_ranking, padx=10, pady=5,
-                                      font=("Arial", 12, "bold"))
-        self.submit_button.pack(side=tk.LEFT, padx=5)
+        self.submit_button = ttk.Button(self.button_frame, text="Submit Ranking", 
+                                      command=self.submit_ranking,
+                                      style="Accent.TButton")
+        self.submit_button.pack(side=tk.LEFT, padx=10, pady=5)
         
         # Skip button
-        self.skip_button = tk.Button(self.button_frame, text="Skip Ranking",
-                                     command=self.skip_ranking, padx=10, pady=5)
-        self.skip_button.pack(side=tk.LEFT, padx=5)
+        self.skip_button = ttk.Button(self.button_frame, text="Skip Ranking",
+                                     command=self.skip_ranking)
+        self.skip_button.pack(side=tk.LEFT, padx=10, pady=5)
         
         # Undo button
-        self.undo_button = tk.Button(self.button_frame, text="Undo",
-                                     command=self.undo_ranking, padx=10, pady=5)
-        self.undo_button.pack(side=tk.LEFT, padx=5)
+        self.undo_button = ttk.Button(self.button_frame, text="Undo",
+                                     command=self.undo_ranking)
+        self.undo_button.pack(side=tk.LEFT, padx=10, pady=5)
 
         # Add restart videos button
-        self.restart_button = tk.Button(self.button_frame, text="Restart Videos", 
-                                      command=self.restart_videos, padx=10, pady=5)
-        self.restart_button.pack(side=tk.LEFT, padx=5)
+        self.restart_button = ttk.Button(self.button_frame, text="Restart Videos", 
+                                      command=self.restart_videos)
+        self.restart_button.pack(side=tk.LEFT, padx=10, pady=5)
         
         # Add generate new videos button
-        self.generate_button = tk.Button(self.button_frame, text="Generate New Videos", 
-                                        command=self.generate_new_videos_dialog, padx=10, pady=5)
-        self.generate_button.pack(side=tk.LEFT, padx=5)
+        self.generate_button = ttk.Button(self.button_frame, text="Generate New Videos", 
+                                        command=self.generate_new_videos_dialog)
+        self.generate_button.pack(side=tk.LEFT, padx=10, pady=5)
         
         # Create bottom frame for status and quit
-        self.bottom_frame = tk.Frame(self.master)
+        self.bottom_frame = ttk.Frame(self.master)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
         # Create frame for keybindings
-        self.key_frame = tk.Frame(self.bottom_frame)
+        self.key_frame = ttk.Frame(self.bottom_frame)
         self.key_frame.pack(side=tk.LEFT, padx=10)
         
         # Add keybindings label
         key_text_col1 = "Keybindings:\nEnter: Submit Ranking\nSpace: Restart Videos\nBackspace: Undo Ranking\nEsc: Quit"
-        key_label_col1 = tk.Label(self.key_frame, text=key_text_col1, justify=tk.LEFT)
+        key_label_col1 = ttk.Label(self.key_frame, text=key_text_col1, justify=tk.LEFT)
         key_label_col1.pack(side=tk.LEFT, anchor='n')
 
         key_text_col2 = "\nLeft: Previous Frame\nRight: Next Frame\nP: Play/Pause\nS: Skip Ranking"
-        key_label_col2 = tk.Label(self.key_frame, text=key_text_col2, justify=tk.LEFT)
+        key_label_col2 = ttk.Label(self.key_frame, text=key_text_col2, justify=tk.LEFT)
         key_label_col2.pack(side=tk.LEFT, anchor='n', padx=10)
         
         # Add progress percentage label
-        self.progress_label = tk.Label(self.bottom_frame, text="Progress: 0% (0/0)")
+        self.progress_label = ttk.Label(self.bottom_frame, text="Progress: 0% (0/0)")
         self.progress_label.pack(side=tk.LEFT, padx=10)
         
         # Add quit button
-        self.quit_button = tk.Button(self.bottom_frame, text="Quit", 
-                                    command=self.save_and_exit, padx=5, pady=2)
-        self.quit_button.pack(side=tk.RIGHT, padx=10)
+        self.quit_button = ttk.Button(self.bottom_frame, text="Quit", 
+                                    command=self.save_and_exit)
+        self.quit_button.pack(side=tk.RIGHT, padx=10, pady=2)
     
     def bind_keys(self):
         """Bind keyboard shortcuts."""
@@ -534,12 +536,12 @@ class QuadLabelerApp:
 
             # Add relationship button if this is not the last video
             if i < len(video_paths) - 1:
-                btn_frame = tk.Frame(self.videos_frame)
+                btn_frame = ttk.Frame(self.videos_frame)
                 btn_frame.pack(side=tk.LEFT, padx=5, pady=10, anchor='center')
                 self.relationship_button_frames.append(btn_frame)
 
                 # Single button that toggles relationship
-                rel_button = tk.Button(btn_frame, text=self.relationships[i], 
+                rel_button = ttk.Button(btn_frame, text=self.relationships[i], 
                                      command=lambda idx=i: self.toggle_relationship(idx))
                 rel_button.pack(pady=2)
                 self.relationship_buttons_widgets.append(rel_button)
@@ -585,20 +587,23 @@ class QuadLabelerApp:
     
     def on_drag_motion(self, source_widget, x, y):
         """Handle drag motion to provide visual feedback."""
-        # Find which widget is under the mouse cursor
         target_widget = self.find_widget_at_position(x, y)
         
-        # If we've moved to a different widget, update highlighting
-        if target_widget != self.highlight_widget and target_widget != source_widget:
-            # Remove previous highlighting
-            if self.highlight_widget and self.highlight_widget != self.drag_source:
-                self.highlight_widget.config(relief=tk.RAISED, background=self.highlight_widget.orig_background)
-            
-            # Add highlighting to new widget
-            if target_widget and target_widget != self.drag_source:
-                target_widget.config(relief=tk.RIDGE, background="#ddffdd")  # Light green highlight
+        # If we are over a valid, different drop target
+        if target_widget and target_widget != self.drag_source and target_widget != self.highlight_widget:
+            # If we were previously highlighting another widget, swap back first
+            if self.highlight_widget:
+                self.swap_videos(source_widget, self.highlight_widget)
                 
+            # Swap with the new target to show a preview
+            self.swap_videos(source_widget, target_widget)
             self.highlight_widget = target_widget
+            
+        # If we have moved off a highlighted widget to an empty space
+        elif not target_widget and self.highlight_widget:
+            # Swap back to original position
+            self.swap_videos(source_widget, self.highlight_widget)
+            self.highlight_widget = None
     
     def find_widget_at_position(self, x, y):
         """Find which video widget is at the given screen position."""
@@ -616,19 +621,13 @@ class QuadLabelerApp:
     
     def end_drag(self, source_widget, event):
         """Handle the end of a drag operation."""
-        # Find which widget we're over
-        x, y = event.x_root, event.y_root
-        target_widget = self.find_widget_at_position(x, y)
-        
-        # Clean up any highlighting
-        if self.highlight_widget and self.highlight_widget != self.drag_source:
-            self.highlight_widget.config(relief=tk.RAISED, background=self.highlight_widget.orig_background)
-        
+        # The swap is now a preview, so the final action is just to confirm.
+        # The widgets are already in the right place if highlight_widget is set.
+        self.drag_source = None
         self.highlight_widget = None
-        
-        if target_widget and target_widget != source_widget:
-            # Swap the widgets in the display
-            self.swap_videos(source_widget, target_widget)
+        # Reset cursor on all widgets
+        for widget in self.video_widgets:
+            widget.config(cursor="")
     
     def swap_videos(self, widget1, widget2):
         """Swap two video widgets in the display and update relationships."""

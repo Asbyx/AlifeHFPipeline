@@ -3,3 +3,4 @@ opencv_python
 pandas
 Pillow
 torch
+sv-ttk

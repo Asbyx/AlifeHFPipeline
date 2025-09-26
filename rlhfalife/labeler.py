@@ -6,6 +6,7 @@ from tkinter import ttk
 import threading
 from rlhfalife.utils import Simulator
 from rlhfalife.data_managers import DatasetManager, PairsManager
+import sv_ttk
 
 def launch_video_labeler(simulator: Simulator, dataset_manager: DatasetManager, pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300)) -> None:
     """
@@ -21,6 +22,7 @@ def launch_video_labeler(simulator: Simulator, dataset_manager: DatasetManager, 
     Note: executes in the main thread.
     """
     root = tk.Tk()
+    sv_ttk.set_theme("dark")
     app = VideoLabelerApp(root, simulator, dataset_manager, pairs_manager, verbose, frame_size)
     root.protocol("WM_DELETE_WINDOW", app.save_and_exit)
     root.mainloop()
@@ -63,17 +65,17 @@ class VideoLabelerApp:
         self.load_next_videos()
 
     def create_widgets(self):
-        self.video_frame = tk.Frame(self.master)
+        self.video_frame = ttk.Frame(self.master)
         self.video_frame.pack()
 
-        self.left_video_label = tk.Label(self.video_frame)
+        self.left_video_label = ttk.Label(self.video_frame)
         self.left_video_label.pack(side="left")
 
-        self.right_video_label = tk.Label(self.video_frame)
+        self.right_video_label = ttk.Label(self.video_frame)
         self.right_video_label.pack(side="right")
 
         # Create a new frame for progress bars
-        self.progress_frame = tk.Frame(self.master)
+        self.progress_frame = ttk.Frame(self.master)
         self.progress_frame.pack(pady=5)
 
         # Add progress bars to the new frame
@@ -83,59 +85,59 @@ class VideoLabelerApp:
         self.progress.bind("<Button-1>", self.on_progress_click)
 
         # Add play/pause button
-        self.play_pause_button = tk.Button(self.progress_frame, text="Play/Pause", command=self.toggle_play_pause)
+        self.play_pause_button = ttk.Button(self.progress_frame, text="Play/Pause", command=self.toggle_play_pause)
         self.play_pause_button.pack(side="left", padx=5)
 
         # Add pair info label
-        self.pair_info_frame = tk.Frame(self.master)
+        self.pair_info_frame = ttk.Frame(self.master)
         self.pair_info_frame.pack(pady=5)
-        self.pair_info_label = tk.Label(self.pair_info_frame, text="Pair 0 of 0")
+        self.pair_info_label = ttk.Label(self.pair_info_frame, text="Pair 0 of 0")
         self.pair_info_label.pack()
 
-        self.button_frame = tk.Frame(self.master)
+        self.button_frame = ttk.Frame(self.master)
         self.button_frame.pack()
 
-        self.left_button = tk.Button(self.button_frame, text="Left Wins", command=self.left_wins)
+        self.left_button = ttk.Button(self.button_frame, text="Left Wins", command=self.left_wins)
         self.left_button.pack(side="left", padx=2)
 
-        self.equal_button = tk.Button(self.button_frame, text="Equal", command=self.declare_equal)
+        self.equal_button = ttk.Button(self.button_frame, text="Equal", command=self.declare_equal)
         self.equal_button.pack(side="left", padx=2)
         
-        self.right_button = tk.Button(self.button_frame, text="Right Wins", command=self.right_wins)
+        self.right_button = ttk.Button(self.button_frame, text="Right Wins", command=self.right_wins)
         self.right_button.pack(side="left", padx=2)
 
-        self.skip_button = tk.Button(self.button_frame, text="Skip", command=self.skip_pair)
+        self.skip_button = ttk.Button(self.button_frame, text="Skip", command=self.skip_pair)
         self.skip_button.pack(side="left", padx=2)
 
-        self.undo_button = tk.Button(self.button_frame, text="Undo", command=self.previous_pair)
+        self.undo_button = ttk.Button(self.button_frame, text="Undo", command=self.previous_pair)
         self.undo_button.pack(side="left", padx=2)
 
-        self.generate_button = tk.Button(self.button_frame, text="Generate New Pairs", command=self.generate_new_pairs_dialog)
+        self.generate_button = ttk.Button(self.button_frame, text="Generate New Pairs", command=self.generate_new_pairs_dialog)
         self.generate_button.pack(side="left", padx=5)
 
         # Add reset & regenerate button
-        self.reset_frame = tk.Frame(self.master)
+        self.reset_frame = ttk.Frame(self.master)
         self.reset_frame.pack(pady=5)
-        self.reset_button = tk.Button(self.reset_frame, text="Reset & Regenerate", command=self.reset_and_regenerate)
+        self.reset_button = ttk.Button(self.reset_frame, text="Reset & Regenerate", command=self.reset_and_regenerate)
         self.reset_button.pack()
 
         # Add quit button frame at the bottom
-        self.quit_frame = tk.Frame(self.master)
+        self.quit_frame = ttk.Frame(self.master)
         self.quit_frame.pack(pady=10, fill=tk.X)
         
         # Add progress percentage label
-        self.progress_label = tk.Label(self.quit_frame, text="Progress: 0% (0/0)")
+        self.progress_label = ttk.Label(self.quit_frame, text="Progress: 0% (0/0)")
         self.progress_label.pack(side="left", padx=10)
         
-        self.quit_button = tk.Button(self.quit_frame, text="Quit", command=self.save_and_exit)
+        self.quit_button = ttk.Button(self.quit_frame, text="Quit", command=self.save_and_exit)
         self.quit_button.pack(side="right", padx=10)
 
         # Create a new frame for keybindings
-        self.keybindings_frame = tk.Frame(self.master)
+        self.keybindings_frame = ttk.Frame(self.master)
         self.keybindings_frame.pack(side="left", padx=10, pady=10)
 
         # Add a label to display keybindings
-        self.keybindings_label = tk.Label(self.keybindings_frame, text="Keybindings:\nLeft Arrow: Left Wins\nRight Arrow: Right Wins\nDown Arrow: Equal\nSpace: Restart Videos\nBackspace: Previous Pair", justify="left")
+        self.keybindings_label = ttk.Label(self.keybindings_frame, text="Keybindings:\nLeft Arrow: Left Wins\nRight Arrow: Right Wins\nDown Arrow: Equal\nSpace: Restart Videos\nBackspace: Previous Pair", justify="left")
         self.keybindings_label.pack()
 
     def toggle_play_pause(self):

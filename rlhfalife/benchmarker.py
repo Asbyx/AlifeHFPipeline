@@ -10,6 +10,65 @@ from scipy.stats import kendalltau
 from rlhfalife.utils import Generator, Rewarder, Simulator
 import traceback
 from pathlib import Path
+import sv_ttk
+
+
+class DarkThemeManager:
+    """Utility class to manage dark theme configuration for tkinter applications."""
+    
+    # Dark theme color palette
+    COLORS = {
+        'bg': '#1c1c1c',           # Dark background
+        'fg': '#ffffff',           # White text
+        'select_bg': '#404040',    # Selection background
+        'select_fg': '#ffffff',    # Selection text
+        'button_bg': '#404040',    # Button background
+        'button_hover': '#505050', # Button hover
+        'button_press': '#303030', # Button pressed
+    }
+    
+    @classmethod
+    def setup_theme(cls, master_window):
+        """Apply dark theme to the given master window and configure ttk styles."""
+        # Apply sv_ttk dark theme
+        sv_ttk.set_theme("dark")
+        
+        # Configure the main window background
+        master_window.configure(bg=cls.COLORS['bg'])
+        
+        # Configure ttk styles for better dark theme integration
+        style = ttk.Style()
+        
+        # Configure Frame styles
+        style.configure('Dark.TFrame', background=cls.COLORS['bg'])
+        
+        # Configure Label styles
+        style.configure('Dark.TLabel', 
+                       background=cls.COLORS['bg'], 
+                       foreground=cls.COLORS['fg'])
+        
+        # Configure Button styles
+        style.configure('Dark.TButton',
+                       background=cls.COLORS['button_bg'],
+                       foreground=cls.COLORS['fg'],
+                       borderwidth=1,
+                       focuscolor='none')
+        style.map('Dark.TButton',
+                 background=[('active', cls.COLORS['button_hover']),
+                           ('pressed', cls.COLORS['button_press'])])
+        
+        # Configure Progressbar styles
+        style.configure('Dark.Horizontal.TProgressbar',
+                       background=cls.COLORS['button_bg'],
+                       troughcolor=cls.COLORS['bg'],
+                       borderwidth=1)
+        
+        return cls.COLORS
+    
+    @classmethod
+    def apply_to_toplevel(cls, toplevel_window):
+        """Apply dark theme background to a Toplevel window."""
+        toplevel_window.configure(bg=cls.COLORS['bg'])
 
 class LiveBenchmarkApp:
     """App for live benchmarking with auto-generated simulations and rewarder scoring."""
@@ -35,6 +94,9 @@ class LiveBenchmarkApp:
         self.after_id = None
         self.cap = None
         
+        # Apply dark theme
+        self.dark_colors = DarkThemeManager.setup_theme(self.master)
+        
         self.master.title("Live Benchmarking")
         self.create_widgets()
         self.run_benchmark()
@@ -51,37 +113,40 @@ class LiveBenchmarkApp:
     
     def create_widgets(self):
         """Create the UI widgets for the live benchmark app."""
-        self.status_label = tk.Label(self.master, text="Initializing...")
+        main_frame = ttk.Frame(self.master, style='Dark.TFrame')
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.status_label = ttk.Label(main_frame, text="Initializing...", style='Dark.TLabel')
         self.status_label.pack(pady=10)
 
-        self.video_frame = tk.Frame(self.master)
+        self.video_frame = ttk.Frame(main_frame, style='Dark.TFrame')
         self.video_frame.pack()
 
-        self.video_label = tk.Label(self.video_frame)
+        self.video_label = ttk.Label(self.video_frame, style='Dark.TLabel')
         self.video_label.pack()
 
-        self.score_label = tk.Label(self.master, text="Score: ")
+        self.score_label = ttk.Label(main_frame, text="Score: ", style='Dark.TLabel')
         self.score_label.pack(pady=5)
 
-        self.button_frame = tk.Frame(self.master)
+        self.button_frame = ttk.Frame(main_frame, style='Dark.TFrame')
         self.button_frame.pack(pady=10)
 
-        self.save_button = tk.Button(self.button_frame, text="Save Video & Params", command=self.save_video)
+        self.save_button = ttk.Button(self.button_frame, text="Save Video & Params", command=self.save_video, style='Dark.TButton')
         self.save_button.pack(side="left", padx=5)
 
-        self.save_snapshot_button = tk.Button(self.button_frame, text="Save Benchmark snapshot", command=self.save_benchmark_snapshot)
+        self.save_snapshot_button = ttk.Button(self.button_frame, text="Save Benchmark snapshot", command=self.save_benchmark_snapshot, style='Dark.TButton')
         self.save_snapshot_button.pack(side="left", padx=5)
 
-        self.prev_button = tk.Button(self.button_frame, text="Previous", command=self.show_previous)
+        self.prev_button = ttk.Button(self.button_frame, text="Previous", command=self.show_previous, style='Dark.TButton')
         self.prev_button.pack(side="left", padx=5)
 
-        self.next_button = tk.Button(self.button_frame, text="Next", command=self.show_next)
+        self.next_button = ttk.Button(self.button_frame, text="Next", command=self.show_next, style='Dark.TButton')
         self.next_button.pack(side="left", padx=5)
 
-        self.restart_button = tk.Button(self.button_frame, text="Restart", command=self.restart_video)
+        self.restart_button = ttk.Button(self.button_frame, text="Restart", command=self.restart_video, style='Dark.TButton')
         self.restart_button.pack(side="left", padx=5)
 
-        self.reroll_button = tk.Button(self.button_frame, text="Reroll Benchmark", command=self.reroll_benchmark)
+        self.reroll_button = ttk.Button(self.button_frame, text="Reroll Benchmark", command=self.reroll_benchmark, style='Dark.TButton')
         self.reroll_button.pack(side="left", padx=5)
         
     def run_benchmark(self):
@@ -294,7 +359,8 @@ class LiveBenchmarkApp:
         # Create and show progress window
         progress_window = tk.Toplevel(self.master)
         progress_window.title("Saving Snapshot")
-        
+        DarkThemeManager.apply_to_toplevel(progress_window)
+
         self.master.update_idletasks()
         master_x = self.master.winfo_x()
         master_y = self.master.winfo_y()
@@ -308,7 +374,8 @@ class LiveBenchmarkApp:
         progress_window.transient(self.master)
         progress_window.grab_set()
 
-        status_label = ttk.Label(progress_window, text="Saving benchmark snapshot...")
+        status_label = ttk.Label(progress_window, text="Saving benchmark snapshot...", style='Dark.TLabel')
+
         status_label.pack(pady=10, padx=10)
 
         progress_bar = ttk.Progressbar(progress_window, orient="horizontal", length=350, mode="determinate")
@@ -374,7 +441,7 @@ class LiveBenchmarkApp:
         
         finally:
             if progress_window.winfo_exists():
-                close_button = ttk.Button(progress_window, text="Close", command=progress_window.destroy)
+                close_button = ttk.Button(progress_window, text="Close", command=progress_window.destroy, style='Dark.TButton')
                 progress_window.after(0, lambda: close_button.pack(pady=10))
                 progress_window.after(0, progress_window.grab_release)
 
@@ -444,6 +511,9 @@ class CreateBenchmarkApp:
         self.drag_source = None
         self.highlight_widget = None
         
+        # Apply dark theme
+        self.dark_colors = DarkThemeManager.setup_theme(self.master)
+        
         self.master.title("Create Benchmark")
         self.create_widgets()
         self.master.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -466,48 +536,48 @@ class CreateBenchmarkApp:
     def create_widgets(self):
         """Create the UI widgets for the benchmark creation app."""
         # Main frame
-        main_frame = ttk.Frame(self.master, padding=10)
+        main_frame = ttk.Frame(self.master, padding=10, style='Dark.TFrame')
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Title and instruction
-        ttk.Label(main_frame, text="Create Benchmark", font=("Arial", 16, "bold")).pack(pady=(0, 5))
+        ttk.Label(main_frame, text="Create Benchmark", font=("Arial", 16, "bold"), style='Dark.TLabel').pack(pady=(0, 5))
         instructions = """Drag videos to rank them from best (top-left) to worst (bottom-right).\nUse the switches between videos to mark them as equal (=) or greater than (<)."""
-        ttk.Label(main_frame, text=instructions, justify=tk.CENTER).pack(pady=(0, 10))
+        ttk.Label(main_frame, text=instructions, justify=tk.CENTER, style='Dark.TLabel').pack(pady=(0, 10))
         
         # Create a frame for the two rows of videos
-        self.videos_area_frame = ttk.Frame(main_frame)
+        self.videos_area_frame = ttk.Frame(main_frame, style='Dark.TFrame')
         self.videos_area_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
         # Frame for the top row of videos
-        self.top_row_frame = ttk.Frame(self.videos_area_frame)
+        self.top_row_frame = ttk.Frame(self.videos_area_frame, style='Dark.TFrame')
         self.top_row_frame.pack(side=tk.TOP, fill=tk.X, expand=True, padx=10, pady=5)
 
         # Frame for the button between rows
-        self.inter_row_frame = ttk.Frame(self.videos_area_frame)
+        self.inter_row_frame = ttk.Frame(self.videos_area_frame, style='Dark.TFrame')
         self.inter_row_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
 
         # Frame for the bottom row of videos
-        self.bottom_row_frame = ttk.Frame(self.videos_area_frame)
+        self.bottom_row_frame = ttk.Frame(self.videos_area_frame, style='Dark.TFrame')
         self.bottom_row_frame.pack(side=tk.TOP, fill=tk.X, expand=True, padx=10, pady=5)
 
         # Button frame
-        button_frame = ttk.Frame(main_frame)
+        button_frame = ttk.Frame(main_frame, style='Dark.TFrame')
         button_frame.pack(pady=10)
         
         # Save benchmark button
-        self.save_button = ttk.Button(button_frame, text="Save Benchmark as default", command=self.save_benchmark)
+        self.save_button = ttk.Button(button_frame, text="Save Benchmark as default", command=self.save_benchmark, style='Dark.TButton')
         self.save_button.pack(side=tk.LEFT, padx=5)
         
         # Save benchmark as button
-        self.save_as_button = ttk.Button(button_frame, text="Save Benchmark in custom location", command=self.save_benchmark_as)
+        self.save_as_button = ttk.Button(button_frame, text="Save Benchmark in custom location", command=self.save_benchmark_as, style='Dark.TButton')
         self.save_as_button.pack(side=tk.LEFT, padx=5)
         
         # Generate new videos button
-        self.generate_button = ttk.Button(button_frame, text="Generate New Videos", command=self.generate_videos)
+        self.generate_button = ttk.Button(button_frame, text="Generate New Videos", command=self.generate_videos, style='Dark.TButton')
         self.generate_button.pack(side=tk.LEFT, padx=5)
         
         # Status label
-        self.status_label = ttk.Label(main_frame, text="Ready")
+        self.status_label = ttk.Label(main_frame, text="Ready", style='Dark.TLabel')
         self.status_label.pack(pady=5)
     
     def toggle_relationship(self, button_or_idx):
@@ -726,6 +796,7 @@ class CreateBenchmarkApp:
                     current_row_frame, 
                     text="<",  # Default is "greater than"
                     width=3,
+                    style='Dark.TButton',
                     # Use lambda with default argument to capture current index
                     command=lambda idx=inline_button_idx: self.toggle_relationship(idx)
                 )
@@ -753,6 +824,7 @@ class CreateBenchmarkApp:
                   self.inter_row_frame,
                   text="<",
                   width=3,
+                  style='Dark.TButton',
                   command=lambda: self.toggle_relationship('inter_row')
              )
              # Pack it in the center of the inter_row_frame
@@ -788,11 +860,11 @@ class CreateBenchmarkApp:
         if target_widget != self.highlight_widget and target_widget != source_widget:
             # Remove previous highlighting
             if self.highlight_widget and self.highlight_widget != self.drag_source:
-                self.highlight_widget.config(relief=tk.RAISED, background=self.highlight_widget.orig_background)
+                self.highlight_widget.config(relief=tk.RAISED)
             
             # Add highlighting to new widget
             if target_widget and target_widget != self.drag_source:
-                target_widget.config(relief=tk.RIDGE, background="#ddffdd")  # Light green highlight
+                target_widget.config(relief=tk.RIDGE)  # Light green highlight
                 
             self.highlight_widget = target_widget
     
@@ -821,7 +893,7 @@ class CreateBenchmarkApp:
             try:
                 # Ensure the widget still exists before trying to configure it
                 if self.highlight_widget.winfo_exists():
-                    self.highlight_widget.config(relief=tk.RAISED, background=self.highlight_widget.orig_background)
+                    self.highlight_widget.config(relief=tk.RAISED)
             except tk.TclError:
                  pass # Widget might have been destroyed
 
@@ -903,6 +975,7 @@ class CreateBenchmarkApp:
                     current_row_frame, 
                     text=button_text, # Restore state
                     width=3,
+                    style='Dark.TButton',
                     command=lambda idx=inline_button_idx: self.toggle_relationship(idx)
                 )
                 relationship_button.pack(side=tk.LEFT, padx=5, pady=(self.frame_size[1] // 2))
@@ -936,6 +1009,7 @@ class CreateBenchmarkApp:
                   self.inter_row_frame,
                   text=button_text, # Restore state
                   width=3,
+                  style='Dark.TButton',
                   command=lambda: self.toggle_relationship('inter_row')
              )
              self.inter_row_relationship_button.pack(anchor=tk.CENTER)
@@ -1108,7 +1182,7 @@ class CreateBenchmarkApp:
         if self.on_close_handler:
             self.on_close_handler()
 
-class DraggableVideo(tk.Frame):
+class DraggableVideo(ttk.Frame):
     """A draggable video widget that can be reordered via drag and drop."""
     
     def __init__(self, parent, video_path, index, frame_size, hash_value, 
@@ -1128,7 +1202,8 @@ class DraggableVideo(tk.Frame):
             on_drag_motion: Callback function when dragging
             start_frame: The starting frame for the video
         """
-        super().__init__(parent, relief=tk.RAISED, borderwidth=2)
+        super().__init__(parent)
+        self.config(relief=tk.RAISED, borderwidth=2) # This might not work with ttk themes but let's try
         self.parent = parent
         self.index = index
         self.frame_size = frame_size
@@ -1140,15 +1215,15 @@ class DraggableVideo(tk.Frame):
         self.is_dragging = False
         
         # Create the video label
-        self.video_label = tk.Label(self)
+        self.video_label = ttk.Label(self)
         self.video_label.pack(padx=5, pady=5)
         
         # Create hash label
-        self.hash_label = tk.Label(self, text=f"Hash: {hash_value}", font=("Arial", 8), wraplength=frame_size[0]-10)
+        self.hash_label = ttk.Label(self, text=f"Hash: {hash_value}", font=("Arial", 8), wraplength=frame_size[0]-10)
         self.hash_label.pack(pady=(0, 5))
         
         # Create ranking indicator
-        self.rank_label = tk.Label(self, text=f"#{index+1}", font=("Arial", 14, "bold"))
+        self.rank_label = ttk.Label(self, text=f"#{index+1}", font=("Arial", 14, "bold"))
         self.rank_label.pack(pady=5)
         
         # Open the video
@@ -1171,7 +1246,6 @@ class DraggableVideo(tk.Frame):
         self.drag_start_y = 0
         
         # For drag and drop feedback
-        self.orig_background = self.cget("background")
         
         # Start playing the video
         self.after_id = None
@@ -1228,7 +1302,7 @@ class DraggableVideo(tk.Frame):
             self.on_drag_start(self)
         
         # Change appearance to indicate dragging
-        self.config(relief=tk.SUNKEN, background="#ddddff")  # Highlight with light blue background
+        self.config(relief=tk.SUNKEN)
     
     def on_motion(self, event):
         """Handle drag motion to provide visual feedback."""
@@ -1248,7 +1322,7 @@ class DraggableVideo(tk.Frame):
         if self.is_dragging:
             self.is_dragging = False
             # Reset appearance
-            self.config(relief=tk.RAISED, background=self.orig_background)
+            self.config(relief=tk.RAISED)
             
             if self.on_drag_release:
                 self.on_drag_release(self, event)
@@ -1413,6 +1487,7 @@ def launch_benchmarker(simulator: Simulator, generator: Generator, rewarder: Rew
 
         print("Launching Live Benchmark GUI...")
         root = tk.Tk()
+        sv_ttk.set_theme("dark")
         root.withdraw() # Hide the root window
         def close_handler():
             # print("Closing hidden root window")
@@ -1431,6 +1506,7 @@ def launch_benchmarker(simulator: Simulator, generator: Generator, rewarder: Rew
     elif choice == '2':
         print("Launching Create Benchmark GUI...")
         root = tk.Tk()
+        sv_ttk.set_theme("dark")
         root.withdraw() # Hide the root window
         def close_handler():
             # print("Closing hidden root window")
