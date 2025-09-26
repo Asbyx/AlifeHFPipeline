@@ -356,7 +356,7 @@ class LiveBenchmarkApp:
                 shutil.copy2(video_path, videos_dir / video_filename)
                 
                 # Save parameter
-                self.simulator.save_param(param, params_dir / base_filename)
+                self.simulator.save_param(param, str(params_dir / base_filename))
                 
                 # Update progress bar
                 if progress_window.winfo_exists():
