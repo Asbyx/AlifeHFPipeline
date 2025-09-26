@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 class Loader:
     """
     Abstract Loader class to load a Generator, a Rewarder and a Simulator
-    It is expected to be also named Loader.
+    Any subclass of this class must be named Loader.
     """
     def load(self, out_paths: dict, config: dict) -> Tuple["Generator", "Rewarder", "Simulator"]:
         """
