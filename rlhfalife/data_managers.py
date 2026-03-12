@@ -305,7 +305,8 @@ class PairsManager:
             fused.save()
             return fused
 
-        sorted_df = canonical_df.sort_values(by=["hash1", "hash2", canonical_df["winner"].isna()])
+        canonical_df["is_null"] = canonical_df["winner"].isna()
+        sorted_df = canonical_df.sort_values(by=["hash1", "hash2", "is_null"]).drop(columns=["is_null"])
         fused.pairs_df = sorted_df.drop_duplicates(subset=["hash1", "hash2"], keep="first").reset_index(drop=True)
         fused.save()
         return fused
