@@ -1,3 +1,5 @@
+import traceback
+import os
 import json
 import threading
 import tkinter as tk
@@ -304,7 +306,8 @@ class OnlineTrainingApp:
 
                 self.root.after(0, lambda: self._activate_step(next_step_id, next_dataset_manager, next_pairs_manager))
             except Exception as exc:
-                self.root.after(0, lambda: messagebox.showerror("Online training error", str(exc)))
+                traceback.print_exc()
+                os._exit(1)
             finally:
                 self.is_training = False
                 self.root.after(0, self.hide_overlay)
