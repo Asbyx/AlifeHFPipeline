@@ -2,7 +2,11 @@ import traceback
 import os
 import gc
 import json
+import sys
+import faulthandler
 import threading
+
+faulthandler.enable()
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from pathlib import Path
@@ -286,6 +290,7 @@ class OnlineTrainingApp:
 
         def run_pipeline():
             try:
+                print("[pipeline] Fusing steps...", flush=True)
                 fused_dataset, fused_pairs = self.controller.fuse_all_steps()
                 training_dataset = TrainingDataset(fused_pairs, fused_dataset)
                 if len(training_dataset) == 0:
@@ -295,11 +300,15 @@ class OnlineTrainingApp:
                     ))
                     return
 
+                print("[pipeline] Training rewarder...", flush=True)
                 self.rewarder.train(training_dataset)
 
                 self.root.after(0, lambda: self.show_overlay("Training generator..."))
+                print("[pipeline] Training generator...", flush=True)
                 self.generator.train(self.simulator, self.rewarder)
+                print("[pipeline] Saving rewarder...", flush=True)
                 self.rewarder.save()
+                print("[pipeline] Saving generator...", flush=True)
                 self.generator.save()
 
                 # Free up memory used by datasets during training before generating new simulations
@@ -310,6 +319,7 @@ class OnlineTrainingApp:
                 next_dataset_manager, next_pairs_manager = self.controller.create_step(next_step_id)
 
                 self.root.after(0, lambda: self.show_overlay("Generating new simulations..."))
+                print("[pipeline] Generating new simulations...", flush=True)
                 self.simulator.generate_pairs(
                     num_new,
                     next_dataset_manager,
@@ -318,9 +328,12 @@ class OnlineTrainingApp:
                     progress_callback=lambda msg: self.root.after(0, lambda: self.show_overlay(msg))
                 )
 
+                print("[pipeline] Done, activating next step.", flush=True)
                 self.root.after(0, lambda: self._activate_step(next_step_id, next_dataset_manager, next_pairs_manager))
-            except Exception as exc:
+            except BaseException as exc:
                 traceback.print_exc()
+                sys.stderr.flush()
+                sys.stdout.flush()
                 self.root.after(0, lambda: os._exit(1))
             finally:
                 self.is_training = False
