@@ -145,6 +145,13 @@ class VideoLabelerApp:
         self.is_playing = not self.is_playing
         if self.is_playing:
             self.update_frames()
+        else:
+            if hasattr(self, 'after_id') and self.after_id:
+                try:
+                    self.master.after_cancel(self.after_id)
+                except Exception:
+                    pass
+                self.after_id = None
 
     def bind_keys(self):
         self.master.bind('<Left>', lambda event: self.left_wins())
@@ -251,6 +258,13 @@ class VideoLabelerApp:
 
     def update_frames(self):
         """Update the video frames."""
+        if hasattr(self, 'after_id') and self.after_id:
+            try:
+                self.master.after_cancel(self.after_id)
+            except Exception:
+                pass
+            self.after_id = None
+            
         if not self.is_playing:
             return
         

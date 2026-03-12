@@ -108,13 +108,14 @@ class DraggableVideo(ttk.Frame):
     
     def update_frame(self):
         """Update the video frame."""
+        if hasattr(self, 'after_id') and self.after_id:
+            try:
+                self.after_cancel(self.after_id)
+            except Exception:
+                pass
+            self.after_id = None
+            
         if not self.is_playing:
-            if self.after_id:
-                try:
-                    self.after_cancel(self.after_id)
-                except Exception:
-                    pass
-                self.after_id = None
             return
         
         ret, frame = self.cap.read()
@@ -384,7 +385,7 @@ class QuadLabelerApp:
         if not is_currently_playing: # If we just started playing
             self.update_progress_bar()
         else: # If we just paused
-            if self.progress_after_id:
+            if hasattr(self, 'progress_after_id') and self.progress_after_id:
                 try:
                     self.master.after_cancel(self.progress_after_id)
                 except Exception:
@@ -393,12 +394,20 @@ class QuadLabelerApp:
 
     def update_progress_bar(self):
         """Update the progress bar to match the current video frame."""
+        # Ensure we don't have multiple timers running
+        if hasattr(self, 'progress_after_id') and self.progress_after_id:
+            try:
+                self.master.after_cancel(self.progress_after_id)
+            except Exception:
+                pass
+            self.progress_after_id = None
+
         if self.video_widgets and self.video_widgets[0].is_playing:
             current_frame = self.video_widgets[0].cap.get(cv2.CAP_PROP_POS_FRAMES)
             self.progress['value'] = current_frame
             self.progress_after_id = self.master.after(100, self.update_progress_bar)
         else:
-            if self.progress_after_id:
+            if hasattr(self, 'progress_after_id') and self.progress_after_id:
                 try:
                     self.master.after_cancel(self.progress_after_id)
                 except Exception:
@@ -569,6 +578,13 @@ class QuadLabelerApp:
 
     def clear_video_widgets(self):
         """Clear all video widgets and relationship buttons, and release resources."""
+        if hasattr(self, 'progress_after_id') and self.progress_after_id:
+            try:
+                self.master.after_cancel(self.progress_after_id)
+            except Exception:
+                pass
+            self.progress_after_id = None
+            
         for widget in self.video_widgets:
             widget.release_resources()
             widget.destroy()
