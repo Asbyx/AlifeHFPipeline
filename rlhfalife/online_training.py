@@ -302,7 +302,11 @@ class OnlineTrainingApp:
             if self.labeler:
                 self.labeler.save_and_exit()
             if self.stats_job:
-                self.root.after_cancel(self.stats_job)
+                try:
+                    self.root.after_cancel(self.stats_job)
+                except Exception:
+                    pass
+                self.stats_job = None
         finally:
             self.root.destroy()
 

@@ -110,7 +110,10 @@ class DraggableVideo(ttk.Frame):
         """Update the video frame."""
         if not self.is_playing:
             if self.after_id:
-                self.after_cancel(self.after_id)
+                try:
+                    self.after_cancel(self.after_id)
+                except Exception:
+                    pass
                 self.after_id = None
             return
         
@@ -195,7 +198,11 @@ class DraggableVideo(ttk.Frame):
         """Release video resources."""
         self.is_playing = False
         if self.after_id:
-            self.after_cancel(self.after_id)
+            try:
+                self.after_cancel(self.after_id)
+            except Exception:
+                pass
+            self.after_id = None
         if self.cap and self.cap.isOpened():
             self.cap.release()
 
@@ -378,7 +385,10 @@ class QuadLabelerApp:
             self.update_progress_bar()
         else: # If we just paused
             if self.progress_after_id:
-                self.master.after_cancel(self.progress_after_id)
+                try:
+                    self.master.after_cancel(self.progress_after_id)
+                except Exception:
+                    pass
                 self.progress_after_id = None
 
     def update_progress_bar(self):
@@ -389,7 +399,10 @@ class QuadLabelerApp:
             self.progress_after_id = self.master.after(100, self.update_progress_bar)
         else:
             if self.progress_after_id:
-                self.master.after_cancel(self.progress_after_id)
+                try:
+                    self.master.after_cancel(self.progress_after_id)
+                except Exception:
+                    pass
             self.progress_after_id = None
 
     def on_progress_click(self, event):
@@ -436,6 +449,10 @@ class QuadLabelerApp:
     
     def load_next_videos(self):
         """Load the next set of 4 videos."""
+        # Save managers to avoid data loss in case of crash
+        self.pairs_manager.save()
+        self.dataset_manager.save()
+        
         self.history.append(self.current_hashes)
 
         # Get 4 hashes that have the fewest ranks and are not ranked together
@@ -800,15 +817,24 @@ class QuadLabelerApp:
         self.clear_video_widgets()
         
         if self.progress_after_id:
-            self.master.after_cancel(self.progress_after_id)
+            try:
+                self.master.after_cancel(self.progress_after_id)
+            except Exception:
+                pass
+            self.progress_after_id = None
 
         # Save managers
         self.pairs_manager.save()
         self.dataset_manager.save()
         
-        # Destroy window and quit
-        self.master.destroy()
-        self.master.quit()
+        # We don't destroy master here to let calling code handle it, 
+        # or we destroy if it's the main app.
+        if hasattr(self.master, "quit"):
+            try:
+                self.master.destroy()
+                self.master.quit()
+            except Exception:
+                pass
 
 class LoadingScreen:
     def __init__(self, master, title="Generating Videos"):
@@ -887,7 +913,10 @@ class LoadingScreen:
     def close(self):
         """Close the loading screen."""
         if hasattr(self, 'animation_id'):
-            self.window.after_cancel(self.animation_id)
+            try:
+                self.window.after_cancel(self.animation_id)
+            except Exception:
+                pass
         self.window.grab_release()
         self.window.destroy()
         
@@ -899,7 +928,7 @@ class LoadingScreen:
         self.update_status("Initializing...")
         
         def update_callback(message):
-            self.update_status(message)
+            self.master.after(0, lambda: self.update_status(message))
             return True  # Continue processing
         
         def run_generation():
