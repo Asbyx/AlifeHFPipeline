@@ -139,7 +139,6 @@ class OnlineTrainingApp:
         self.is_training = False
 
         # Hide main window until initial step is resolved to avoid showing an empty labeler if generating
-        self.root.withdraw()
         self.current_step, self.dataset_manager, self.pairs_manager, needs_generation = self.controller.ensure_initial_step(
             prompt_fn=self._prompt_initial_sims
         )
