@@ -137,6 +137,7 @@ class OnlineTrainingApp:
         self.frame_size = frame_size
         self.verbose = verbose
         self.is_training = False
+        self._popup_shown_for_current_step = False
 
         # Hide main window until initial step is resolved to avoid showing an empty labeler if generating
         self.current_step, self.dataset_manager, self.pairs_manager, needs_generation = self.controller.ensure_initial_step(
@@ -250,6 +251,15 @@ class OnlineTrainingApp:
         stats[self.current_step] = self.pairs_manager.get_nb_ranked_pairs()
 
         current_ranked = stats.get(self.current_step, 0)
+        
+        previous_steps = [s for s in stats.keys() if s < self.current_step]
+        if previous_steps:
+            prev_step = max(previous_steps)
+            prev_ranked = stats.get(prev_step, 0)
+            if prev_ranked > 0 and current_ranked >= prev_ranked and not self._popup_shown_for_current_step:
+                self._popup_shown_for_current_step = True
+                messagebox.showinfo("Target Reached", "You have reached the number of pairs rankedin the previous step.")
+
         values = [f"Current step ({self.current_step}): {current_ranked} ranked pairs"]
         for step in sorted((s for s in stats.keys() if s != self.current_step), reverse=True):
             values.append(f"Step {step}: {stats[step]} ranked pairs")
@@ -322,6 +332,7 @@ class OnlineTrainingApp:
         self.current_step = step_number
         self.dataset_manager = dataset_manager
         self.pairs_manager = pairs_manager
+        self._popup_shown_for_current_step = False
         self.step_title_var.set(f"Online training - Step {self.current_step}")
 
         if self.labeler:
