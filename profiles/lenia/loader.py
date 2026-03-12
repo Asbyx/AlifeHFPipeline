@@ -26,7 +26,7 @@ class Loader(rlhfalife.utils.Loader):
         """
         device = config['device']
         print("Initializing generator...")
-        generator = LeniaGenerator(gen_mode='default',device=device)
+        generator = LeniaGenerator(gen_mode=config["generator"]["mode"], device=device)
 
         print("Initializing simulator...")
         size = config["simulator"]["size"]
@@ -43,9 +43,8 @@ class Loader(rlhfalife.utils.Loader):
         if os.path.exists(Path(out_paths["rewarder"]) / f"{config["name"]}.pt"):
             print("Loading existing rewarder model...")
             rewarder.load()
+        else:
+            print("No existing rewarder model found. Starting with a new model.")
 
-
-        
-
-        
+        generator.train(simulator=simulator, rewarder=rewarder)
         return generator, rewarder, simulator
