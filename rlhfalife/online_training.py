@@ -1,5 +1,6 @@
 import traceback
 import os
+import gc
 import json
 import threading
 import tkinter as tk
@@ -291,6 +292,10 @@ class OnlineTrainingApp:
                 self.generator.train(self.simulator, self.rewarder)
                 self.rewarder.save()
                 self.generator.save()
+
+                # Free up memory used by datasets during training before generating new simulations
+                del training_dataset, fused_dataset, fused_pairs
+                gc.collect()
 
                 next_step_id = self.current_step + 1
                 next_dataset_manager, next_pairs_manager = self.controller.create_step(next_step_id)
