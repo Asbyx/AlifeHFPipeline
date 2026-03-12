@@ -1,9 +1,10 @@
 import os
 import torch
 import numpy as np
+from tqdm import tqdm
 from rlhfalife.utils import Generator, Rewarder, Simulator, Loader
 from .particlerewarder import ParticleRewarder
-from .randomparticlegenerator import RandomParticleGenerator
+from .randomparticlegenerator import RandomFixedSizeParticleGenerator, RandomParticleGenerator
 from .particlesimulator import ParticleSimulator
 from typing import Tuple
 
@@ -133,3 +134,43 @@ class Loader(Loader):
 
         # exit(0)
         return generator, rewarder, simulator
+
+    def custom_script(self, generator: "Generator", rewarder: "Rewarder", simulator: "Simulator") -> None:
+        """
+        Custom script to run after the generator, rewarder and simulator are loaded.
+
+        You can use this function to do any custom script, like testing, using your functions, print values,etc.
+        """
+        nb_iterations = 5
+        nb_samples = 20
+
+        generator = RandomFixedSizeParticleGenerator(
+            types_number=5, particles_number=generator.particles_number, device=generator.device
+        )
+
+        population = generator.generate(nb_samples)
+        
+        for i in tqdm(range(nb_iterations)):
+            outputs = simulator.run(population)
+            rewards = torch.tensor(rewarder.rank(outputs)) # output a list
+
+            # top 30% survive and reproduce (with mutation)
+            top_k = int(0.3 * nb_samples)
+            best_indices = torch.argsort(rewards, dim=0, descending=True)[:top_k]
+            population = [population[i] for i in best_indices]
+            simulator.save_video_from_output(outputs[best_indices[0]], f"C:\\Users\\elrbe\\all_code\\perso\\AlifeHub\\evo\\best_of_gen_{i}.mp4")
+
+            mutated_population = RandomFixedSizeParticleGenerator.mutate(population)
+            population = population + mutated_population
+            
+            # Rest is filled with new random individuals to maintain population size
+            population = population + generator.generate(nb_samples - len(population))
+
+        # produce video of top 30%
+        outputs = simulator.run(population)
+        rewards = torch.tensor(rewarder.rank(outputs)) 
+        top_k = int(0.5 * nb_samples)
+        top_indices = torch.argsort(rewards, dim=0, descending=True)[:top_k]
+        for i in top_indices:
+            simulator.save_video_from_output(outputs[i], f"C:\\Users\\elrbe\\all_code\\perso\\AlifeHub\\evo\\evolved_{i}_score_{rewards[i]:.2f}.mp4")
+        exit(0)
