@@ -307,7 +307,7 @@ class OnlineTrainingApp:
                 self.root.after(0, lambda: self._activate_step(next_step_id, next_dataset_manager, next_pairs_manager))
             except Exception as exc:
                 traceback.print_exc()
-                os._exit(1)
+                self.root.after(0, lambda: os._exit(1))
             finally:
                 self.is_training = False
                 self.root.after(0, self.hide_overlay)
