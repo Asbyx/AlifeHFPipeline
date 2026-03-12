@@ -43,7 +43,7 @@ class OnlineTrainingController:
                     continue
         return sorted(steps)
 
-    def ensure_initial_step(self, prompt_fn: Callable[[], int]) -> Tuple[int, DatasetManager, PairsManager]:
+    def ensure_initial_step(self, prompt_fn: Callable[[], int]) -> Tuple[int, DatasetManager, PairsManager, bool]:
         steps = self.existing_steps()
         if steps:
             last_step = steps[-1]
@@ -51,7 +51,7 @@ class OnlineTrainingController:
             if self.initial_num_sims is None:
                 self.initial_num_sims = 8
                 self._save_config({"initial_num_sims": self.initial_num_sims})
-            return last_step, *self.load_step(last_step)
+            return last_step, *self.load_step(last_step), False
 
         step_number = 1
         dataset_path, pairs_path, step_out_paths = self._step_paths(step_number)
@@ -64,10 +64,11 @@ class OnlineTrainingController:
                 self.initial_num_sims = 8
             self._save_config({"initial_num_sims": self.initial_num_sims})
 
+        needs_generation = False
         if self.initial_num_sims and self.initial_num_sims > 0:
-            self.simulator.generate_pairs(self.initial_num_sims, dataset_manager, pairs_manager, verbose=False)
+            needs_generation = True
 
-        return step_number, dataset_manager, pairs_manager
+        return step_number, dataset_manager, pairs_manager, needs_generation
 
     def load_step(self, step: int) -> Tuple[DatasetManager, PairsManager]:
         dataset_path, pairs_path, step_out_paths = self._step_paths(step)
@@ -134,7 +135,9 @@ class OnlineTrainingApp:
         self.verbose = verbose
         self.is_training = False
 
-        self.current_step, self.dataset_manager, self.pairs_manager = self.controller.ensure_initial_step(
+        # Hide main window until initial step is resolved to avoid showing an empty labeler if generating
+        self.root.withdraw()
+        self.current_step, self.dataset_manager, self.pairs_manager, needs_generation = self.controller.ensure_initial_step(
             prompt_fn=self._prompt_initial_sims
         )
 
@@ -153,6 +156,34 @@ class OnlineTrainingApp:
         self.panes.add(self.left_frame, weight=3)
         self.panes.add(self.right_frame, weight=1)
 
+        self.labeler = None
+        self._build_side_panel()
+        self.stats_job = None
+        self._build_overlay()
+
+        if needs_generation:
+            self.root.deiconify()
+            self.show_overlay("Generating initial simulations...")
+            
+            def run_initial_generation():
+                try:
+                    self.simulator.generate_pairs(
+                        self.controller.initial_num_sims, 
+                        self.dataset_manager, 
+                        self.pairs_manager, 
+                        verbose=self.verbose,
+                        progress_callback=lambda msg: self.root.after(0, lambda: self.show_overlay(msg))
+                    )
+                finally:
+                    self.root.after(0, self._finish_init)
+            
+            threading.Thread(target=run_initial_generation, daemon=True).start()
+        else:
+            self.root.deiconify()
+            self._finish_init()
+
+    def _finish_init(self):
+        self.hide_overlay()
         self.labeler = QuadLabelerApp(
             self.root,
             self.simulator,
@@ -162,10 +193,6 @@ class OnlineTrainingApp:
             frame_size=self.frame_size,
             container=self.left_frame
         )
-
-        self._build_side_panel()
-        self.stats_job = None
-        self._build_overlay()
         self.refresh_stats()
 
     def _build_side_panel(self):
@@ -218,14 +245,18 @@ class OnlineTrainingApp:
     def refresh_stats(self):
         self.dataset_count_var.set(f"Number of simulations: {len(self.dataset_manager)}")
         stats = self.controller.get_ranked_pairs_per_step()
+        stats[self.current_step] = self.pairs_manager.get_nb_ranked_pairs()
 
         current_ranked = stats.get(self.current_step, 0)
         values = [f"Current step ({self.current_step}): {current_ranked} ranked pairs"]
-        for step in sorted(s for s in stats.keys() if s != self.current_step):
+        for step in sorted((s for s in stats.keys() if s != self.current_step), reverse=True):
             values.append(f"Step {step}: {stats[step]} ranked pairs")
 
+        current_sel = self.pairs_dropdown.get()
         self.pairs_dropdown["values"] = values
-        if values:
+        if current_sel in values:
+            self.pairs_dropdown.set(current_sel)
+        elif values:
             self.pairs_dropdown.set(values[0])
 
         if self.stats_job:
@@ -267,7 +298,8 @@ class OnlineTrainingApp:
                     num_new,
                     next_dataset_manager,
                     next_pairs_manager,
-                    verbose=self.verbose
+                    verbose=self.verbose,
+                    progress_callback=lambda msg: self.root.after(0, lambda: self.show_overlay(msg))
                 )
 
                 self.root.after(0, lambda: self._activate_step(next_step_id, next_dataset_manager, next_pairs_manager))
