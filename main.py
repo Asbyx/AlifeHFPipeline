@@ -237,14 +237,7 @@ def main():
         "4": lambda: generate_pairs_cli_action(simulator, dataset_manager, pairs_manager),
         "5": lambda: launch_benchmarker(simulator, generator, rewarder, out_paths, frame_size=(args.frame_size, args.frame_size)),
         "6": lambda: export_profile_interactive(),
-        "11": lambda: launch_online_training(
-            simulator,
-            generator,
-            rewarder,
-            out_path,
-            out_paths,
-            frame_size=(args.frame_size, args.frame_size),
-            verbose=False
+        "11": lambda: launch_online_training(simulator, generator, rewarder, out_path, out_paths, frame_size=(args.frame_size, args.frame_size), verbose=False
         ),
         "9": lambda: change_frame_size_action(args),
         "A": lambda: analyze_dataset_action(dataset_manager, pairs_manager),
