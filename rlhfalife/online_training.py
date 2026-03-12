@@ -31,13 +31,7 @@ class OnlineTrainingController:
         dataset_path = step_dir / "dataset.csv"
         pairs_path = step_dir / "pairs.csv"
 
-        step_out_paths = {}
-        for key in self.out_paths.keys():
-            target = step_dir / key
-            target.mkdir(parents=True, exist_ok=True)
-            step_out_paths[key] = target
-
-        return dataset_path, pairs_path, step_out_paths
+        return dataset_path, pairs_path, self.out_paths
 
     def existing_steps(self) -> List[int]:
         steps = []
