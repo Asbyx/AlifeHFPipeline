@@ -42,6 +42,7 @@ class LeniaRewarder(TorchRewarder):
         self.model = CLIPVIPReward(patch_size=config.get('clipvip_size',32), clipvip_weights=clipvip_weights, minihead=config.get('minihead',True),num_frames=config.get('num_frames',12),
                                     device=device)
         self.model.freeze_body()
+        self.loaded = False
 
     def forward(self, x):
         """
@@ -103,3 +104,11 @@ class LeniaRewarder(TorchRewarder):
         assert tensvid.shape[1:] == self.model.input_shape, f'tensvid shape {tensvid.shape[0]} not equal to {self.model.input_shape}'
 
         return tensvid
+    
+    def save(self):
+        self.loaded = True
+        return super().save()
+
+    def load(self):
+        self.loaded = True
+        return super().load()
