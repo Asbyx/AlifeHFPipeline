@@ -8,6 +8,7 @@ from rlhfalife.labeler import launch_video_labeler
 from rlhfalife.quad_labeler import launch_quad_labeler
 from rlhfalife.benchmarker import launch_benchmarker
 from rlhfalife.trainer import launch_training
+from rlhfalife.online_training import launch_online_training
 from rlhfalife.utils import *
 from rlhfalife.data_managers import DatasetManager, PairsManager
 from exporter import export_profile_interactive
@@ -179,6 +180,7 @@ def print_menu():
     print("  2. Quad Labeler (needs GUI)")
     print("\n--- Training & Generation ---")
     print("  3. Launch training")
+    print(" 11. Online training (needs GUI)")
     print("  4. Generate pairs (no GUI)")
     print("  5. Benchmark rewarder")
     print("\n--- Profile & Configuration ---")
@@ -235,6 +237,15 @@ def main():
         "4": lambda: generate_pairs_cli_action(simulator, dataset_manager, pairs_manager),
         "5": lambda: launch_benchmarker(simulator, generator, rewarder, out_paths, frame_size=(args.frame_size, args.frame_size)),
         "6": lambda: export_profile_interactive(),
+        "11": lambda: launch_online_training(
+            simulator,
+            generator,
+            rewarder,
+            out_path,
+            out_paths,
+            frame_size=(args.frame_size, args.frame_size),
+            verbose=False
+        ),
         "9": lambda: change_frame_size_action(args),
         "A": lambda: analyze_dataset_action(dataset_manager, pairs_manager),
         "B": lambda: reset_labels_action(pairs_manager),
