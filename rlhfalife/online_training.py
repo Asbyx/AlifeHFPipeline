@@ -343,7 +343,10 @@ class OnlineTrainingApp:
                     pass
                 self.stats_job = None
         finally:
-            self.root.destroy()
+            try:
+                self.root.destroy()
+            except Exception:
+                pass
 
 
 def launch_online_training(simulator: Simulator, generator: Generator, rewarder: Rewarder,
