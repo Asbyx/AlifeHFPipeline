@@ -1355,7 +1355,8 @@ def test_rewarder_on_benchmark(simulator: Simulator, rewarder: Rewarder, out_pat
     # Check if benchmark exists
     if not benchmark_file.exists():
         print(f"Error: Benchmark file not found.")
-        print("Please create a benchmark first using option 2.")
+        print("If this message occurs during training, it means that a non existing test set is given in the config of the profile. A proper benchmark can be created in the benchmark option in the main menu.")
+        print("If this message occurs during benchmarking, please first create a benchmark first using option 2.")
         return
     
     print_v(f"Loading benchmark from {benchmark_file}")
