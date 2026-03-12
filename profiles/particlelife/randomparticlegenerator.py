@@ -55,3 +55,39 @@ class RandomParticleGenerator(Generator):
     def load(self) -> None:
         raise NotImplementedError("Not available for this generator.")
 
+class RandomFixedSizeParticleGenerator(RandomParticleGenerator):
+    def __init__(self, types_number: int, particles_number: int, device='cuda' if torch.cuda.is_available() else 'cpu'):
+        super().__init__(particles_number, False, device)
+        self.types_number = types_number
+
+    def generate(self, nb_params: int) -> List[Any]:
+        """
+        Generate a list of parameters for the particle life automaton.
+
+        Args:
+            nb_params: The number of parameters to generate.
+        Returns:
+            A list of parameters.
+            params:
+                torch.Tensor, the attraction matrix. Size is (types_number, types_number).
+                torch.Tensor, the positions of the particles. Size is (particles_number, 2).
+                torch.Tensor, the types of the particles. Size is (particles_number,).
+        """
+        return [
+            (torch.randn((self.types_number, self.types_number), device=self.device),
+            torch.rand((self.particles_number, 2), device=self.device),
+            torch.randint(0, self.types_number, (self.particles_number,), device=self.device))
+            for i in range(nb_params)
+        ]
+    
+    def mutate(params):
+        """
+        Mutate the attraction matrix of the parameters by adding a small random noise.
+        """
+        mutated_params = []
+        for param in params:
+            attraction_matrix, positions, types = param
+            noise = torch.randn_like(attraction_matrix) * 0.1
+            mutated_attraction_matrix = torch.clamp(attraction_matrix + noise, -1, 1)
+            mutated_params.append((mutated_attraction_matrix, positions, types))
+        return mutated_params
