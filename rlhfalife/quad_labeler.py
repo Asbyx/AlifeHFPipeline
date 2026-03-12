@@ -201,7 +201,8 @@ class DraggableVideo(ttk.Frame):
 
 class QuadLabelerApp:
     def __init__(self, master: tk.Tk, simulator: Simulator, dataset_manager: DatasetManager, 
-                 pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300)) -> None:
+                 pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300),
+                 container: tk.Widget = None) -> None:
         """
         Initialize the quad labeler app.
         
@@ -218,6 +219,7 @@ class QuadLabelerApp:
         self.pairs_manager = pairs_manager
         self.verbose = verbose
         self.frame_size = frame_size
+        self.container = container if container is not None else master
         
         self.master = master
         self.master.title("Quad Video Labeler")
@@ -261,7 +263,7 @@ class QuadLabelerApp:
     def create_widgets(self):
         """Create the main UI widgets."""
         # Create title and instructions
-        self.title_frame = ttk.Frame(self.master)
+        self.title_frame = ttk.Frame(self.container)
         self.title_frame.pack(pady=10)
         
         title_label = ttk.Label(self.title_frame, 
@@ -270,11 +272,11 @@ class QuadLabelerApp:
         title_label.pack()
         
         # Create main frame for videos
-        self.videos_frame = ttk.Frame(self.master)
+        self.videos_frame = ttk.Frame(self.container)
         self.videos_frame.pack(padx=20, pady=10)
         
         # Create a new frame for video controls
-        self.video_controls_frame = ttk.Frame(self.master)
+        self.video_controls_frame = ttk.Frame(self.container)
         self.video_controls_frame.pack(pady=5)
 
         buttons_control_frame = ttk.Frame(self.video_controls_frame)
@@ -294,7 +296,7 @@ class QuadLabelerApp:
         self.progress.bind("<Button-1>", self.on_progress_click)
         
         # Create frame for action buttons
-        self.button_frame = ttk.Frame(self.master)
+        self.button_frame = ttk.Frame(self.container)
         self.button_frame.pack(pady=15)
         
         # Submit button
@@ -324,7 +326,7 @@ class QuadLabelerApp:
         self.generate_button.pack(side=tk.LEFT, padx=10, pady=5)
         
         # Create bottom frame for status and quit
-        self.bottom_frame = ttk.Frame(self.master)
+        self.bottom_frame = ttk.Frame(self.container)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
         # Create frame for keybindings
