@@ -1,3 +1,5 @@
+import torch
+import gc
 from rlhfalife import Generator, Simulator, Rewarder
 from typing import List, Any
 from .utils.leniaparams import LeniaParams
@@ -19,7 +21,8 @@ class LeniaGenerator(Generator):
         self.k_size = k_size
         self.device = device
 
-        self.latest_rewarder = None
+        self.rewarder = None
+        self.simulator = None
 
     def generate(self, nb_params: int) -> List[Any]:
         """
@@ -33,11 +36,32 @@ class LeniaGenerator(Generator):
         """
         match self.gen_mode:
             case 'default':
-                daparams = LeniaParams.default_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
-                return [daparams[i] for i in range(daparams.batch_size)]
+                batch_params = LeniaParams.default_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
+                return [batch_params[i] for i in range(batch_params.batch_size)]
             case 'random':
-                daparams = LeniaParams.random_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
-                return [daparams[i] for i in range(daparams.batch_size)]
+                batch_params = LeniaParams.random_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
+                return [batch_params[i] for i in range(batch_params.batch_size)]
+            case 'filtering':
+                if self.rewarder is None:
+                    raise ValueError("No rewarder found for filtering generation mode.")
+                elif not self.rewarder.loaded:
+                    print("Rewarder not loaded yet, generating random parameters instead.")
+                    dataparams = LeniaParams.default_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
+                    return [dataparams[i] for i in range(dataparams.batch_size)]
+                # Generate a large batch of random parameters, simulate them and keep the best ones according to the rewarder.
+                large_batch_size = nb_params * 3
+                
+                batch_params = LeniaParams.default_gen(batch_size=large_batch_size, k_size=self.k_size, device=self.device)
+                
+                sims = self.simulator.run([batch_params[i] for i in range(large_batch_size)]) # (large_batch_size, num_frames, size, size, channels)
+                rewards = self.rewarder.rank(sims) # (large_batch_size, )
+                
+                del sims  # Frees up memory from the large simulations tensor
+                gc.collect()
+                
+                topk_indices = torch.topk(torch.tensor(rewards), nb_params).indices
+                return [batch_params[i.item()] for i in topk_indices]
+        raise ValueError(f"Invalid generation mode {self.gen_mode}")
 
     def train(self, simulator: "Simulator", rewarder: "Rewarder") -> None:
         """
@@ -47,13 +71,15 @@ class LeniaGenerator(Generator):
             simulator: Simulator for which the generator is trained
             rewarder: Rewarder to train with
         """
-        print('POOOOF, its trained')
+        self.rewarder = rewarder
+        self.simulator = simulator
+        print("POOOOOF, generator trained !")
     
     def save(self) -> None:
         """
         Save the generator to the path
         """
-        print('POOOOOOF, its saved')
+        print("Fake saving of the generator")
 
     def load(self) -> "Generator":
         """
@@ -62,5 +88,4 @@ class LeniaGenerator(Generator):
         Returns:
             The loaded generator
         """
-        print('POOOOOOF, its loaded')
-        return self
+        print(f"Fake loading of the generator.")
