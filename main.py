@@ -175,25 +175,26 @@ def generate_pairs_cli(simulator, dataset_manager, pairs_manager, num_sims, batc
 
 def print_menu():
     print("\nAlifeHub - Main Menu")
-    print("\n--- Data Labeling ---")
-    print("  1. Label Pairs (needs GUI)")
-    print("  2. Quad Labeler (needs GUI)")
-    print("\n--- Training & Generation ---")
-    print("  3. Launch training")
-    print(" 11. Online training (needs GUI)")
-    print("  4. Generate pairs (no GUI)")
-    print("  5. Benchmark rewarder")
-    print("\n--- Profile & Configuration ---")
-    print("  6. Export profile")
-    print("  7. Reload new code")
-    print("  8. Reload models and data managers (updates config)")
-    print("  9. Change frame size")
-    print(" 10. Custom script")
-    print("\n--- Data Management ---")
-    print("  A. Analyze training dataset")
-    print("  B. Reset labels (keep simulations and pairs)")
-    print("  C. Reset config (erase everything)")
-    print("\n--- General ---")
+    print("\n--- 1. Data Labeling ---")
+    print(" 11. Label Pairs (needs GUI)")
+    print(" 12. Quad Labeler (needs GUI)")
+    print("\n--- 2. Training & Generation ---")
+    print(" 21. Launch training")
+    print(" 22. Online training (needs GUI)")
+    print(" 23. Generate pairs (no GUI)")
+    print(" 24. Generate videos with current generator (no GUI)")
+    print(" 25. Benchmark rewarder")
+    print("\n--- 3. Profile & Configuration ---")
+    print(" 31. Export profile")
+    print(" 32. Reload new code")
+    print(" 33. Reload models and data managers (updates config)")
+    print(" 34. Change frame size")
+    print(" 35. Custom script")
+    print("\n--- 4. Data Management ---")
+    print(" 41. Analyze training dataset")
+    print(" 42. Reset labels (keep simulations and pairs)")
+    print(" 43. Reset config (erase everything)")
+    print("\n--- 0. General ---")
     print("  0. Exit")
     return input("\nPlease choose an option: ").upper()
 
@@ -231,18 +232,19 @@ def main():
     loader = profile_module.Loader()
 
     menu_actions = {
-        "1": lambda: launch_video_labeler(simulator, dataset_manager, pairs_manager, verbose=False, frame_size=(args.frame_size, args.frame_size)),
-        "2": lambda: launch_quad_labeler(simulator, dataset_manager, pairs_manager, verbose=False, frame_size=(args.frame_size, args.frame_size)),
-        "3": lambda: launch_training(generator, rewarder, simulator, pairs_manager, dataset_manager),
-        "4": lambda: generate_pairs_cli_action(simulator, dataset_manager, pairs_manager),
-        "5": lambda: launch_benchmarker(simulator, generator, rewarder, out_paths, frame_size=(args.frame_size, args.frame_size)),
-        "6": lambda: export_profile_interactive(),
-        "11": lambda: launch_online_training(simulator, generator, rewarder, out_path, out_paths, frame_size=(args.frame_size, args.frame_size), verbose=False),
-        "9": lambda: change_frame_size_action(args),
-        "A": lambda: analyze_dataset_action(dataset_manager, pairs_manager),
-        "B": lambda: reset_labels_action(pairs_manager),
-        "C": lambda: reset_config_action(out_path, profile, config),
-        "10": lambda: loader.custom_script(generator, rewarder, simulator),
+        "11": lambda: launch_video_labeler(simulator, dataset_manager, pairs_manager, verbose=False, frame_size=(args.frame_size, args.frame_size)),
+        "12": lambda: launch_quad_labeler(simulator, dataset_manager, pairs_manager, verbose=False, frame_size=(args.frame_size, args.frame_size)),
+        "21": lambda: launch_training(generator, rewarder, simulator, pairs_manager, dataset_manager),
+        "23": lambda: generate_pairs_cli_action(simulator, dataset_manager, pairs_manager),
+        "25": lambda: launch_benchmarker(simulator, generator, rewarder, out_paths, frame_size=(args.frame_size, args.frame_size)),
+        "31": lambda: export_profile_interactive(),
+        "22": lambda: launch_online_training(simulator, generator, rewarder, out_path, out_paths, frame_size=(args.frame_size, args.frame_size), verbose=False),
+        "34": lambda: change_frame_size_action(args),
+        "41": lambda: analyze_dataset_action(dataset_manager, pairs_manager),
+        "42": lambda: reset_labels_action(pairs_manager),
+        "43": lambda: reset_config_action(out_path, profile, config),
+        "35": lambda: loader.custom_script(generator, rewarder, simulator),
+        "24": lambda: generate_videos_cli_action(generator, simulator, out_paths),
     }
     
     while True:
@@ -261,12 +263,12 @@ def main():
         if choice == "0":
             print("Exiting AlifeHub...")
             break
-        elif choice == "7":
+        elif choice == "32":
             print("Reloading new code...")            
             profile_module = load_profile_module(profile)
             loader = profile_module.Loader()
-            print("Code reloaded. Models and data managers will be reloaded on next action or if you select option 8.")
-        elif choice == "8":
+            print("Code reloaded. Models and data managers will be reloaded on next action or if you select option 33.")
+        elif choice == "33":
             print("Reloading models and data managers...")
             config_file_path = Path("profiles") / profile / "configs" / f"{config}.json"
             with open(config_file_path) as f:
@@ -298,6 +300,32 @@ def generate_pairs_cli_action(simulator, dataset_manager, pairs_manager):
         generate_pairs_cli(simulator, dataset_manager, pairs_manager, num_sims, batch_size=batch_size)
     except ValueError:
         print("Please enter a valid number.")
+
+def generate_videos_cli_action(generator, simulator, out_paths):
+    try:
+        num_sims_str = input("Enter total number of videos to generate (default: 5): ") or "5"
+        num_sims = int(num_sims_str)
+        if num_sims <= 0:
+            print("Number of videos must be positive")
+            return
+        
+        print(f"Generating {num_sims} parameters...")
+        params = generator.generate(num_sims)
+        
+        print(f"Running {num_sims} simulations...")
+        outputs = simulator.run(params)
+        
+        hashs = [str(h) for h in generator.hash_params(params)]
+        
+        print(f"Saving {num_sims} videos...")
+        video_paths = simulator.save_videos(hashs, outputs, out_paths['videos'])
+        print(f"Successfully generated {num_sims} videos in {out_paths['videos']}")
+    except ValueError:
+        print("Please enter a valid number.")
+    except Exception as e:
+        print(f"Error generating videos: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 def change_frame_size_action(args):
     try:
