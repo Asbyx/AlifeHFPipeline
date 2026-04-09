@@ -109,7 +109,7 @@ class TorchRewarder(nn.Module, Rewarder):
 
     def rank(self, data):
         """
-        Rank the data based on the model's predictions.
+        Gives scores to the data, higher is better. 
         
         Args:
             data: Data to rank; shape (batch_size, *)
