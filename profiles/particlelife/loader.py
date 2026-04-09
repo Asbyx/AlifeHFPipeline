@@ -42,9 +42,11 @@ class Loader(Loader):
         print(f"\nUsing device: {device}")
 
         # Generator
+        gen_mode = config.get('generator', {}).get('mode', 'random')
         generator = RandomParticleGenerator(
-            config['particles_number'], device
-            )
+            config['particles_number'], gen_mode=gen_mode, device=device
+        )
+        print("[LOADER] Generator loaded with mode:", gen_mode)
     
         # Simulator
         simulator = ParticleSimulator(
@@ -61,7 +63,7 @@ class Loader(Loader):
             )
 
         # Rewarder
-        rewarder_path = os.path.join(out_paths['rewarder'], config['model_name'] + '.pt')
+        rewarder_path = os.path.join(out_paths['rewarder'], config.get('model_name', 'model') + '.pt')
         rewarder = ParticleRewarder(
             clipvip_path="./profiles/particlelife/rewarder/clipvip_32.pt",
             config=config,
@@ -71,8 +73,10 @@ class Loader(Loader):
         )
         if os.path.exists(rewarder_path):
             rewarder = rewarder.load()
+            generator.train(simulator=simulator, rewarder=rewarder)
+            print(f"[LOADER] Rewarder loaded from {rewarder_path}.")
         else:
-            print(f"No model found at {rewarder_path}, using initialized model.")
+            print(f"[LOADER] No model found at {rewarder_path}, using initialized model.")
         
 
         # --- simple pipeline test ---
@@ -135,11 +139,9 @@ class Loader(Loader):
         # exit(0)
         return generator, rewarder, simulator
 
-    def custom_script(self, generator: "Generator", rewarder: "Rewarder", simulator: "Simulator") -> None:
+    def evolution_experiment(self, generator: "Generator", rewarder: "Rewarder", simulator: "Simulator") -> None:
         """
-        Custom script to run after the generator, rewarder and simulator are loaded.
-
-        You can use this function to do any custom script, like testing, using your functions, print values,etc.
+        Custom implementation for running an evolutionary particle experiment.
         """
         nb_iterations = 5
         nb_samples = 20
@@ -158,19 +160,64 @@ class Loader(Loader):
             top_k = int(0.3 * nb_samples)
             best_indices = torch.argsort(rewards, dim=0, descending=True)[:top_k]
             population = [population[i] for i in best_indices]
-            simulator.save_video_from_output(outputs[best_indices[0]], f"C:\\Users\\elrbe\\all_code\\perso\\AlifeHub\\evo\\best_of_gen_{i}.mp4")
+            # using best_indices[0].item() to get integer index properly
+            best_idx = best_indices[0].item() if isinstance(best_indices[0], torch.Tensor) else best_indices[0]
+            simulator.save_video_from_output(outputs[best_idx], f"C:\\Users\\elrbe\\all_code\\perso\\AlifeHub\\evo\\best_of_gen_{i}.mp4")
 
             mutated_population = RandomFixedSizeParticleGenerator.mutate(population)
             population = population + mutated_population
             
             # Rest is filled with new random individuals to maintain population size
-            population = population + generator.generate(nb_samples - len(population))
+            remaining_needed = nb_samples - len(population)
+            if remaining_needed > 0:
+                population = population + generator.generate(remaining_needed)
 
-        # produce video of top 30%
+        # produce video of top 50%
         outputs = simulator.run(population)
         rewards = torch.tensor(rewarder.rank(outputs)) 
         top_k = int(0.5 * nb_samples)
         top_indices = torch.argsort(rewards, dim=0, descending=True)[:top_k]
         for i in top_indices:
-            simulator.save_video_from_output(outputs[i], f"C:\\Users\\elrbe\\all_code\\perso\\AlifeHub\\evo\\evolved_{i}_score_{rewards[i]:.2f}.mp4")
+            idx = i.item() if isinstance(i, torch.Tensor) else i
+            simulator.save_video_from_output(outputs[idx], f"C:\\Users\\elrbe\\all_code\\perso\\AlifeHub\\evo\\evolved_{idx}_score_{rewards[idx]:.2f}.mp4")
+        exit(0)
+
+    def custom_script(self, generator: "Generator", rewarder: "Rewarder", simulator: "Simulator") -> None:
+        """
+        Custom script to run after the generator, rewarder and simulator are loaded.
+
+        You can use this function to do any custom script, like testing, using your functions, print values,etc.
+        """
+        import time
+        import os
+        
+        print("Starting video generation benchmark...")
+        
+        # We need a directory to output the videos
+        out_dir = "C:\\Users\\elrbe\\all_code\\perso\\AlifeHub\\benchmark_videos"
+        os.makedirs(out_dir, exist_ok=True)
+        
+        # Ensure we have our specific generator settings
+        generator = RandomFixedSizeParticleGenerator(
+            types_number=5, particles_number=generator.particles_number, device=generator.device
+        )
+        
+        nb_videos = 10
+        print(f"Generating {nb_videos} parameters...")
+        population = generator.generate(nb_videos)
+        
+        print(f"Running simulation for {nb_videos} variants...")
+        sim_start = time.time()
+        outputs = simulator.run(population)
+        sim_time = time.time() - sim_start
+        print(f"Simulation took {sim_time:.2f} seconds.")
+        
+        print("Generating videos...")
+        video_start = time.time()
+        for i in range(nb_videos):
+            simulator.save_video_from_output(outputs[i], os.path.join(out_dir, f"benchmark_{i}.mp4"))
+        video_time = time.time() - video_start
+        
+        print(f"Video generation took {video_time:.2f} seconds.")
+        print(f"Total time for {nb_videos} videos: {sim_time + video_time:.2f} seconds.")
         exit(0)

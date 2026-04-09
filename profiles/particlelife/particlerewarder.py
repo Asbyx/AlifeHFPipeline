@@ -31,9 +31,12 @@ class ParticleRewarder(TorchRewarder):
         config.setdefault('lr', 0.0001)
         config.setdefault('batch_size', 8)
         config.setdefault('epochs', 50)
+        config.setdefault('head_type', 'linear')
+        
+        # Add default model_name if it is missing
         wandb_params = {
             "project": "RLHF particle life",
-            "name": model_path.split("\\")[-1],
+            "name": model_path.split("\\")[-1] if model_path else "default",
             "config": config
         }
 
