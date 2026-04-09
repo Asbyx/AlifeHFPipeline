@@ -301,7 +301,7 @@ def generate_pairs_cli_action(simulator, dataset_manager, pairs_manager):
     except ValueError:
         print("Please enter a valid number.")
 
-def generate_videos_cli_action(generator, simulator, out_paths):
+def generate_videos_cli_action(generator: Generator, simulator: Simulator, out_paths: dict):
     try:
         num_sims_str = input("Enter total number of videos to generate (default: 5): ") or "5"
         num_sims = int(num_sims_str)
@@ -318,8 +318,8 @@ def generate_videos_cli_action(generator, simulator, out_paths):
         hashs = [str(h) for h in generator.hash_params(params)]
         
         print(f"Saving {num_sims} videos...")
-        video_paths = simulator.save_videos(hashs, outputs, out_paths['videos'])
-        print(f"Successfully generated {num_sims} videos in {out_paths['videos']}")
+        video_paths = simulator.save_videos(hashs, outputs, "./video_generation")
+        print(f"Successfully generated {num_sims} videos in ./video_generation")
     except ValueError:
         print("Please enter a valid number.")
     except Exception as e:
