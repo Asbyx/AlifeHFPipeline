@@ -51,7 +51,7 @@ class TorchRewarder(nn.Module, Rewarder):
 
         self.loss = {
             "margin": lambda scores1, scores2, y: F.margin_ranking_loss(scores1, scores2, y*2-1, margin=0.1), # convert to {-1, 1}
-            "cross_entropy": lambda scores1, scores2, y: F.cross_entropy(torch.stack([scores1, scores2],dim=1), y.long(), reduction='mean')
+            "cross_entropy": lambda scores1, scores2, y: F.cross_entropy(torch.stack([scores1, scores2],dim=1), torch.stack([1-y, y], dim=1), reduction='mean')
         }[self.config.get('loss', 'cross_entropy')]
 
         if self.config.get('test_set_path', None) is not None:
@@ -315,6 +315,9 @@ class TorchRewarder(nn.Module, Rewarder):
         }
         if test_pairwise_accuracy is not None and not np.isnan(test_pairwise_accuracy):
             log_data["test_pairwise_accuracy"] = test_pairwise_accuracy
+
+        if hasattr(self, 'current_online_step'):
+            log_data["other/online_step"] = self.current_online_step
 
         if self.wandb_params:
             self.wandb_run.log(log_data)
