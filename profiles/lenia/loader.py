@@ -26,7 +26,7 @@ class Loader(rlhfalife.utils.Loader):
         """
         device = config['device']
         print("Initializing generator...")
-        generator = LeniaGenerator(gen_mode='default',device=device)
+        generator = LeniaGenerator(gen_mode=config["generator"]["mode"], device=device)
 
         print("Initializing simulator...")
         size = config["simulator"]["size"]
@@ -39,13 +39,18 @@ class Loader(rlhfalife.utils.Loader):
         simulator = LeniaSimulator(generator=generator, lenia_automaton=lenia,run_length=run_length,frame_portion=frame_portion,device=device)
 
         print("Initializing rewarder...")
-        rewarder = LeniaRewarder(config=config, model_path=Path(out_paths["rewarder"])/f"{config["name"]}.pt", device=device, simulator=simulator, wandb_params= {"project": 'rlalife', "name": config["name"]})
+        rewarder = LeniaRewarder(
+            config=config, 
+            model_path=Path(out_paths["rewarder"])/f"{config["name"]}.pt", 
+            device=device, 
+            simulator=simulator,
+            wandb_params={"project": "AlifeHFPipeline paper models", "name": config.get("name", "default"), "config": config}
+)
         if os.path.exists(Path(out_paths["rewarder"]) / f"{config["name"]}.pt"):
             print("Loading existing rewarder model...")
             rewarder.load()
+        else:
+            print("No existing rewarder model found. Starting with a new model.")
 
-
-        
-
-        
+        generator.train(simulator=simulator, rewarder=rewarder)
         return generator, rewarder, simulator

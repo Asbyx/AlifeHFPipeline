@@ -5,17 +5,10 @@ from typing import List, Any
 import torch, torch.nn.functional as F, torch.nn as nn
 from pathlib import Path
 from torch.optim import AdamW
-curpath = Path(__file__).parent.resolve() # UGLY, change it to load from module correctly
+curpath = Path(__file__).parent.resolve() # todo UGLY, change it to load from module correctly
 
 
 class LeniaRewarder(TorchRewarder):
-    """
-    A rewarder that uses a torch model. 
-
-    The only method that needs to be implemented is the forward method.
-
-    Note: using this class assume that the outputs are torch tensors (dtype=torch.float32) saved as pt files, with torch.save.
-    """
     def __init__(self, config: dict, model_path: str, device: str = "cpu", wandb_params: dict = None, simulator=None):
         """
         Initialize the TorchRewarder.
@@ -36,12 +29,13 @@ class LeniaRewarder(TorchRewarder):
             wandb_params: Dictionary containing wandb parameters. Defaults to None.
         """
         super().__init__(config = config, model_path=model_path, device=device,simulator=simulator, wandb_params=wandb_params)
-        clipvip_weights = curpath.parent / 'particlelife'/ 'rewarder' / f'clipvip_{config.get('clipvip_size',32)}.pt'
 
-            
+        clipvip_weights = curpath.parent / 'particlelife'/ 'rewarder' / f'clipvip_{config.get('clipvip_size',32)}.pt'
         self.model = CLIPVIPReward(patch_size=config.get('clipvip_size',32), clipvip_weights=clipvip_weights, minihead=config.get('minihead',True),num_frames=config.get('num_frames',12),
                                     device=device)
         self.model.freeze_body()
+
+        self.loaded = False
 
     def forward(self, x):
         """
@@ -103,3 +97,11 @@ class LeniaRewarder(TorchRewarder):
         assert tensvid.shape[1:] == self.model.input_shape, f'tensvid shape {tensvid.shape[0]} not equal to {self.model.input_shape}'
 
         return tensvid
+    
+    def save(self):
+        self.loaded = True
+        return super().save()
+
+    def load(self):
+        self.loaded = True
+        return super().load()

@@ -1,206 +1,261 @@
-from rlhfalife.utils import *
 import torch
-import json
 import cv2
 import numpy as np
-from .utils import get_color_tables, render_frame
+from rlhfalife.utils import Simulator, Generator, Rewarder
 from typing import List, Any
+import os
+
+
+@torch.jit.script
+def _simulate_particle_life_jit(
+    steps: int,
+    px: torch.Tensor,
+    py: torch.Tensor,
+    vx: torch.Tensor,
+    vy: torch.Tensor,
+    M_full: torch.Tensor,
+    dt: float,
+    beta: float,
+    max_rad_sq: float,
+    force_mult: float,
+    friction_factor: float,
+) -> torch.Tensor:
+    N = px.size(0)
+    history = torch.zeros(
+        (steps, N, 2), dtype=torch.float32, device=torch.device("cpu")
+    )
+
+    for step in range(steps):
+        dx = px.unsqueeze(0) - px.unsqueeze(1)
+        dy = py.unsqueeze(0) - py.unsqueeze(1)
+
+        dx = dx - torch.round(dx)
+        dy = dy - torch.round(dy)
+
+        d_sq = (dx * dx + dy * dy) / max_rad_sq
+
+        mask = (d_sq < 1.0) & (d_sq > 1e-16)
+
+        d_mask = torch.sqrt(d_sq[mask])
+
+        f = torch.zeros_like(d_mask)
+
+        repulsion_mask = d_mask < beta
+        f[repulsion_mask] = d_mask[repulsion_mask] / beta - 1.0
+
+        attraction_mask = d_mask >= beta
+        if attraction_mask.any():
+            i_idx, j_idx = torch.where(mask)
+            M = M_full[i_idx[attraction_mask], j_idx[attraction_mask]]
+            f[attraction_mask] = M * (
+                1.0
+                - torch.abs(2.0 * d_mask[attraction_mask] - 1.0 - beta) / (1.0 - beta)
+            )
+
+        force_mag = f / d_mask * force_mult
+
+        fx = dx[mask] * force_mag
+        fy = dy[mask] * force_mag
+
+        i_idx, _ = torch.where(mask)
+
+        total_fx = torch.zeros(N, dtype=torch.float32, device=px.device)
+        total_fy = torch.zeros(N, dtype=torch.float32, device=px.device)
+
+        total_fx.index_add_(0, i_idx, fx)
+        total_fy.index_add_(0, i_idx, fy)
+
+        vx = vx * friction_factor + total_fx * dt
+        vy = vy * friction_factor + total_fy * dt
+
+        px = px + vx * dt
+        py = py + vy * dt
+
+        px = px - torch.floor(px)
+        py = py - torch.floor(py)
+
+        history[step, :, 0] = px.cpu()
+        history[step, :, 1] = py.cpu()
+
+    return history
+
 
 class ParticleSimulator(Simulator):
     """
-    ParticleSimulator is a class that simulates the particle life automaton.
-    
-    Parameters:
-        torch.Tensor, the attraction matrix. Size is (types_number, types_number).
-        torch.Tensor, the positions of the particles. Size is (particles_number, 2).
-        torch.Tensor, the types of the particles. Size is (particles_number,).
+    GPU Accelerated Particle Life Simulator.
+    Simulates particles moving in a continuous space based on distance-dependent forces.
+
+    Using a GPU for N particles: O(N^2) vectorized force computation.
     """
-    def __init__(self, generator: Generator, size: tuple[int, int], particles_number: int, steps: int, friction_half_time: float, beta: float, max_radius: int, dt: float, force_factor: float, video_frames_sample_rate: int = 1):
+
+    def __init__(
+        self,
+        generator: Generator,
+        size: tuple[int, int],
+        particles_number: int,
+        steps: int,
+        friction_half_time: float,
+        beta: float,
+        max_radius: float,
+        dt: float,
+        force_factor: float,
+        video_frames_sample_rate: int = 1,
+        device: str = "cuda",
+    ):
         """
-        Initialize the ParticleSimulator.
+        Initialize the simulator.
 
         Args:
-            generator: The generator to use for the simulation.
-            friction_half_time: The half-time of the friction.
-            beta: The beta parameter.
-            max_radius: The maximum radius of the particles.
-            dt: The time step of the simulation.
-            force_factor: The force factor of the simulation.
-            sample_rate: Save every Nth step (default=1). Higher values use less memory but record fewer frames.
+            generator: the generator providing the simulation parameters.
+            steps: number of simulation steps.
+            dt: time step size.
+            beta: core repulsion radius as fraction of max_radius.
+            max_radius: maximum interaction radius.
+            force_factor: scalar multiplied with forces.
+            friction_half_time: half velocity decay time.
+            device: 'cuda' or 'cpu'.
         """
         super().__init__(generator)
-
-        self.friction_factor = 0.5**(dt/friction_half_time)
+        self.steps = steps
+        self.dt = dt
         self.beta = beta
         self.max_radius = max_radius
-        self.dt = dt
         self.force_factor = force_factor
-        self.device = generator.device
-        self.steps = steps
-        self.size = torch.tensor(size, device=self.device)
+        self.friction_factor = 0.5 ** (self.dt / friction_half_time)
+        self.size = size
         self.particles_number = particles_number
         self.video_frames_sample_rate = video_frames_sample_rate
+        self.device = device
 
-    def run(self, params: List[torch.Tensor]) -> List[torch.Tensor]:
+        # Color table for video generation
+        self.colors = torch.tensor(
+            [
+                [255, 0, 0],
+                [0, 255, 0],
+                [0, 0, 255],
+                [255, 255, 0],
+                [0, 255, 255],
+                [255, 0, 255],
+                [255, 128, 0],
+                [255, 0, 128],
+                [0, 255, 128],
+                [128, 255, 0],
+            ],
+            dtype=torch.uint8,
+            device=self.device,
+        )
+
+    def run(self, params_list: List[Any]) -> List[Any]:
         """
-        Run the simulation with the given parameters.
+        Run simulations given parameters.
+        Force law:
+            If d < beta: f = d/beta - 1
+            If beta < d < 1: f = interaction[t1, t2] * (1 - abs(2*d - 1 - beta) / (1 - beta))
 
         Args:
-            params: The parameters to use for the simulation.
-                attraction_matrix (torch.Tensor): The attraction matrix.
-                positions (torch.Tensor): The positions of the particles.
-                types (torch.Tensor): The types of the particles.
+            params_list: List of parameters (interaction_matrix, positions, types).
+
+        Returns:
+            The outputs: List of dicts with 'types' and 'positions'
         """
         outputs = []
-        for param in params:
-            # Ensure input tensors are on the correct device
-            attraction_matrix = param[0].to(self.device)
-            positions = param[1].to(self.device)
-            types = param[2].to(self.device)
-            velocities = torch.zeros((self.particles_number, 2), dtype=torch.float32, device=self.device)
-            
-            # Store positions history on GPU during simulation
-            positions_history = torch.zeros((self.steps, self.particles_number, 2), dtype=torch.float32, device=self.device)
-            
-            for step in range(self.steps):            
-                normalized_distances = torch.norm(positions[:, None, :] - positions[None, :, :], dim=2)/self.max_radius
-                directions = -(positions[:, None, :] - positions[None, :, :]) / normalized_distances[:, :, None]
-                directions = directions.nan_to_num(0.0)
+        for params in params_list:
+            interaction_matrix, positions, types = params
 
-                F = torch.where(
-                    normalized_distances < self.beta,
-                    normalized_distances/self.beta - 1,
-                    torch.where(
-                        normalized_distances < 1,
-                        attraction_matrix[types[:, None], types[None, :]] * (1 - torch.abs(2*normalized_distances - 1 - self.beta) / (1-self.beta)),
-                        torch.zeros_like(normalized_distances, dtype=torch.float32, device=self.device)
-                    )
-                )
+            # Move to device if needed
+            interaction_matrix = interaction_matrix.to(self.device, dtype=torch.float32)
+            positions = positions.to(self.device, dtype=torch.float32)
+            types = types.to(self.device, dtype=torch.long)
 
-                F = F[:, :, None] * directions
-                F = F.sum(dim=1)*self.force_factor*self.max_radius
+            N = positions.shape[0]
+            vx = torch.zeros(N, dtype=torch.float32, device=self.device)
+            vy = torch.zeros(N, dtype=torch.float32, device=self.device)
 
-                velocities = velocities*self.friction_factor + F*self.dt
+            px = positions[:, 0].clone()
+            py = positions[:, 1].clone()
 
-                positions += velocities*self.dt                
-                positions = torch.fmod(positions, 1.0)
-                positions = torch.where(positions < 0, positions + 1.0, positions)
+            M_full = interaction_matrix[types.unsqueeze(1), types.unsqueeze(0)]
+            max_rad_sq = float(self.max_radius**2)
+            force_mult = float(self.max_radius * self.force_factor)
+            beta_f = float(self.beta)
+            dt_f = float(self.dt)
+            friction_f = float(self.friction_factor)
 
-                # Save current positions to history
-                positions_history[step] = positions.clone()
+            history = _simulate_particle_life_jit(
+                self.steps,
+                px,
+                py,
+                vx,
+                vy,
+                M_full,
+                dt_f,
+                beta_f,
+                max_rad_sq,
+                force_mult,
+                friction_f,
+            )
 
-            # Transfer all data to CPU at the end
-            positions_history_cpu = positions_history.cpu()
+            outputs.append({"types": types.cpu(), "positions": history})
 
-            output = {
-                "types": types.cpu(),
-                "positions": positions_history_cpu,
-            }
-            
-            outputs.append(output)
         return outputs
 
-    def save_output(self, output: torch.Tensor, path: str) -> str:
+    def save_output(self, output: Any, path: str) -> str:
         """
-        Save the output to the path.
-
-        Args:
-            output: The output to save.
-            path: The path to save the output to.
-
-        Returns:
-            The path to the saved output.
+        Save the output to a file as a dictionary.
         """
-        # Save as torch tensors instead of JSON
-        torch.save({
-            "types": output["types"],
-            "positions": output["positions"]
-        }, f"{path}.pt")
+        torch.save(output, f"{path}.pt")
         return f"{path}.pt"
 
-    def load_output(self, path: str) -> torch.Tensor:
-        return torch.load(f"{path}.pt")
-    
-    def save_video_from_output(self, output: torch.Tensor, path: str) -> None:
-        """
-        Save the video from the output using the utility rendering function.
+    def load_output(self, path: str) -> Any:
+        return torch.load(path+".pt")
 
-        Args:
-            output: The output to save, containing positions and types.
-            path: The path to save the video to.
-        """
-        positions_history = output["positions"]  # This is already on CPU from the run method
-        types_cpu = output["types"] # This is already on CPU
-        
-        # Move necessary tensors to the device
-        types = types_cpu.to(self.device)
-        positions_history_device = positions_history.to(self.device)
-
-        sim_size_cpu = self.size.cpu().numpy() if isinstance(self.size, torch.Tensor) else self.size
-        width, height = int(sim_size_cpu[0]), int(sim_size_cpu[1])
-        fps = 30
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-        video = cv2.VideoWriter(path, fourcc, fps, (width, height))
-        
-        color_table_size = types.max().item() + 1
-        # get_color_tables returns a CPU tensor, move it to device
-        color_table = get_color_tables(color_table_size).to(self.device)
-        
-        # Filter frames based on sample rate
-        indices = torch.arange(0, len(positions_history_device), self.video_frames_sample_rate, device=self.device)
-        sampled_positions = positions_history_device[indices]
-        
-        num_frames_to_render = len(sampled_positions)
-        if num_frames_to_render == 0:
-            video.release()
-            return
-
-        # Pre-allocate tensor for all frames on the GPU
-        all_frames_gpu = torch.zeros((num_frames_to_render, height, width, 3), dtype=torch.uint8, device=self.device)
-        
-        for i, positions_for_frame in enumerate(sampled_positions):
-            # render_frame expects positions for a single frame
-            frame = render_frame(
-                positions_for_frame, 
-                types, 
-                width, 
-                height, 
-                color_table, 
-                particle_radius=3 # Ensure particle_radius is an int
-            )
-            all_frames_gpu[i] = frame
-        
-        # Transfer all frames to CPU at once
-        all_frames_numpy = all_frames_gpu.cpu().numpy()
-        
-        # Write frames to video
-        for frame_np in all_frames_numpy:
-            video.write(frame_np)
-        
-        video.release()
-
-    def save_param(self, param: Any, path: str) -> str:
-        """
-        Save the param to the path.
-        
-        Args:
-            param: The param to save.
-            path: The path to save the param to.
-
-        Returns:
-            The path to the saved param.
-        """
+    def save_param(self, param: Any, path: str) -> None:
         torch.save(param, f"{path}.pt")
-        return f"{path}.pt"
-    
+
     def load_param(self, path: str) -> Any:
-        """
-        Load the param from the path.
-
-        Args:
-            path: The path to load the param from.
-
-        Returns:
-            The loaded param.
-        """
         return torch.load(path)
+
+    def save_video_from_output(self, output: Any, path: str) -> None:
+        """
+        Generate an mp4 video.
+        """
+        history = output["positions"]  # (T, N, 2)
+        types = output["types"]  # (N,)
+        T, N, _ = history.shape
+        # Use config's size, defaulting to 500
+        video_size = self.size[0] if isinstance(self.size, (list, tuple)) else self.size
+
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out_video = cv2.VideoWriter(path, fourcc, 30.0, (video_size, video_size))
+
+        # Vectorized numpy indexing setup to skip slow cv2.circle loops
+        pos = (history.numpy() * video_size).astype(np.int32)
+        t_np = types.numpy()
+
+        from .utils import get_color_tables
+
+        colors_table = get_color_tables(max(10, types.max().item() + 1))
+
+        particle_colors = colors_table.numpy()[t_np % len(colors_table)]
+        particle_colors = particle_colors[:, ::-1]  # BGR
+
+        # Circle radius 3 pixels
+        offsets = []
+        for dy in range(-3, 4):
+            for dx in range(-3, 4):
+                if dx * dx + dy * dy <= 9:
+                    offsets.append((dx, dy))
+
+        for step in range(0, T, self.video_frames_sample_rate):
+            frame = np.zeros((video_size, video_size, 3), dtype=np.uint8)
+            p = pos[step]
+
+            x = np.clip(p[:, 0], 3, video_size - 4)
+            y = np.clip(p[:, 1], 3, video_size - 4)
+
+            for dx, dy in offsets:
+                frame[y + dy, x + dx] = particle_colors
+
+            out_video.write(frame)
+
+        out_video.release()

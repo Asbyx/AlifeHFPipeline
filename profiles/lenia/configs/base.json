@@ -13,6 +13,8 @@
         "frame_portion": 5,
         "num_output_frames": 12
     },
-    "device":"cuda",
-    "test_set_path":"out/best_lenia/benchmark"
+    "generator": {
+        "mode": "filtering"
+    },
+    "device":"cuda"
 }

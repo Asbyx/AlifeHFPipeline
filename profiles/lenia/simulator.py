@@ -55,7 +55,7 @@ class LeniaSimulator(Simulator):
             The outputs of the simulation
         """
         all_batch_params= []
-        print(f'Generating {len(params)} params in {len(params)//self.max_batch}+{int(len(params)%self.max_batch==0)} batches')
+        print(f'Running {len(params)} params in {len(params)//self.max_batch}+{int(len(params)%self.max_batch==0)} batches')
 
         for k in range(len(params)//self.max_batch):
             slice_params = params[k*self.max_batch:(k+1)*self.max_batch]
@@ -172,3 +172,12 @@ class LeniaSimulator(Simulator):
             The loaded parameter
         """
         return LeniaParams(from_file=Path(path).with_suffix('.pt'))
+
+    def load_output(self, path):
+        """
+        Load the output from the path.
+        
+        Returns:
+            The loaded output
+        """
+        return torch.load(path+'.pt')

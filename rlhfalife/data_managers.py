@@ -29,6 +29,33 @@ class DatasetManager:
         self.out_paths = out_paths
         self.simulator = simulator
         self.data_df = self._load_or_create_dataset()
+
+    @classmethod
+    def fuse(cls, managers: List["DatasetManager"], dataset_path: str, out_paths: dict, simulator=None) -> "DatasetManager":
+        """
+        Build a new DatasetManager by merging several others.
+        The resulting manager is saved at dataset_path with deduplicated hashes (last occurrence wins).
+
+        Args:
+            managers: Managers to merge.
+            dataset_path: Target path for the fused dataset.csv.
+            out_paths: Output paths to associate with the fused manager.
+            simulator: Optional simulator for loading entries.
+        """
+        Path(dataset_path).parent.mkdir(parents=True, exist_ok=True)
+        fused = cls(dataset_path, out_paths, simulator)
+
+        if not managers:
+            return fused
+
+        combined = pd.concat([m.data_df for m in managers if hasattr(m, "data_df")], ignore_index=True)
+        if combined.empty:
+            return fused
+
+        combined = combined.drop_duplicates(subset=["hash"], keep="last").reset_index(drop=True)
+        fused.data_df = combined
+        fused.save()
+        return fused
         
     def _load_or_create_dataset(self) -> pd.DataFrame:
         """Load the dataset from CSV or create a new one if it doesn't exist."""
@@ -230,6 +257,59 @@ class PairsManager:
         """
         self.pairs_path = pairs_path
         self._load_or_create_pairs()
+
+    @classmethod
+    def fuse(cls, managers: List["PairsManager"], pairs_path: str) -> "PairsManager":
+        """
+        Build a new PairsManager by merging several others.
+        Hashes are canonicalized (hash1 <= hash2) and winners are kept when available.
+
+        Args:
+            managers: Managers to merge.
+            pairs_path: Target path for the fused pairs.csv.
+        """
+        Path(pairs_path).parent.mkdir(parents=True, exist_ok=True)
+        fused = cls(pairs_path)
+
+        if not managers:
+            return fused
+
+        combined_frames = [m.pairs_df.copy() for m in managers if hasattr(m, "pairs_df")]
+        if not combined_frames:
+            return fused
+
+        combined = pd.concat(combined_frames, ignore_index=True)
+        canonical_rows = []
+        for _, row in combined.iterrows():
+            h1 = str(row.get("hash1"))
+            h2 = str(row.get("hash2"))
+            winner = row.get("winner")
+
+            if pd.isna(winner):
+                winner_val = None
+            else:
+                try:
+                    winner_val = float(winner)
+                except Exception:
+                    winner_val = None
+
+            if h1 <= h2:
+                canonical_rows.append((h1, h2, winner_val))
+            else:
+                inverted_winner = None if winner_val is None else 1.0 - winner_val
+                canonical_rows.append((h2, h1, inverted_winner))
+
+        canonical_df = pd.DataFrame(canonical_rows, columns=["hash1", "hash2", "winner"])
+        if canonical_df.empty:
+            fused.pairs_df = canonical_df
+            fused.save()
+            return fused
+
+        canonical_df["is_null"] = canonical_df["winner"].isna()
+        sorted_df = canonical_df.sort_values(by=["hash1", "hash2", "is_null"]).drop(columns=["is_null"])
+        fused.pairs_df = sorted_df.drop_duplicates(subset=["hash1", "hash2"], keep="first").reset_index(drop=True)
+        fused.save()
+        return fused
         
     def _load_or_create_pairs(self) -> None:
         """Load the pairs from CSV or create a new one if it doesn't exist."""

@@ -108,10 +108,14 @@ class DraggableVideo(ttk.Frame):
     
     def update_frame(self):
         """Update the video frame."""
-        if not self.is_playing:
-            if self.after_id:
+        if hasattr(self, 'after_id') and self.after_id:
+            try:
                 self.after_cancel(self.after_id)
-                self.after_id = None
+            except Exception:
+                pass
+            self.after_id = None
+            
+        if not self.is_playing:
             return
         
         ret, frame = self.cap.read()
@@ -195,13 +199,18 @@ class DraggableVideo(ttk.Frame):
         """Release video resources."""
         self.is_playing = False
         if self.after_id:
-            self.after_cancel(self.after_id)
+            try:
+                self.after_cancel(self.after_id)
+            except Exception:
+                pass
+            self.after_id = None
         if self.cap and self.cap.isOpened():
             self.cap.release()
 
 class QuadLabelerApp:
     def __init__(self, master: tk.Tk, simulator: Simulator, dataset_manager: DatasetManager, 
-                 pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300)) -> None:
+                 pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300),
+                 container: tk.Widget = None) -> None:
         """
         Initialize the quad labeler app.
         
@@ -218,6 +227,7 @@ class QuadLabelerApp:
         self.pairs_manager = pairs_manager
         self.verbose = verbose
         self.frame_size = frame_size
+        self.container = container if container is not None else master
         
         self.master = master
         self.master.title("Quad Video Labeler")
@@ -233,9 +243,9 @@ class QuadLabelerApp:
         self.progress = None
         self.progress_after_id = None
         
-        # Relationships between adjacent videos (e.g., '<' or '=')
-        # For 4 videos, there are 3 relationships. Default to '<'.
-        self.relationships = ['<'] * 3 
+        # Relationships between adjacent videos (e.g., '>' or '=')
+        # For 4 videos, there are 3 relationships. Default to '>'.
+        self.relationships = ['>'] * 3 
         self.relationship_button_frames = [] # Frames holding the < and = buttons
         self.relationship_buttons_widgets = [] # Stores (less_btn, equal_btn) tuples
 
@@ -261,7 +271,7 @@ class QuadLabelerApp:
     def create_widgets(self):
         """Create the main UI widgets."""
         # Create title and instructions
-        self.title_frame = ttk.Frame(self.master)
+        self.title_frame = ttk.Frame(self.container)
         self.title_frame.pack(pady=10)
         
         title_label = ttk.Label(self.title_frame, 
@@ -270,11 +280,11 @@ class QuadLabelerApp:
         title_label.pack()
         
         # Create main frame for videos
-        self.videos_frame = ttk.Frame(self.master)
+        self.videos_frame = ttk.Frame(self.container)
         self.videos_frame.pack(padx=20, pady=10)
         
         # Create a new frame for video controls
-        self.video_controls_frame = ttk.Frame(self.master)
+        self.video_controls_frame = ttk.Frame(self.container)
         self.video_controls_frame.pack(pady=5)
 
         buttons_control_frame = ttk.Frame(self.video_controls_frame)
@@ -294,7 +304,7 @@ class QuadLabelerApp:
         self.progress.bind("<Button-1>", self.on_progress_click)
         
         # Create frame for action buttons
-        self.button_frame = ttk.Frame(self.master)
+        self.button_frame = ttk.Frame(self.container)
         self.button_frame.pack(pady=15)
         
         # Submit button
@@ -324,7 +334,7 @@ class QuadLabelerApp:
         self.generate_button.pack(side=tk.LEFT, padx=10, pady=5)
         
         # Create bottom frame for status and quit
-        self.bottom_frame = ttk.Frame(self.master)
+        self.bottom_frame = ttk.Frame(self.container)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
         # Create frame for keybindings
@@ -375,19 +385,33 @@ class QuadLabelerApp:
         if not is_currently_playing: # If we just started playing
             self.update_progress_bar()
         else: # If we just paused
-            if self.progress_after_id:
-                self.master.after_cancel(self.progress_after_id)
+            if hasattr(self, 'progress_after_id') and self.progress_after_id:
+                try:
+                    self.master.after_cancel(self.progress_after_id)
+                except Exception:
+                    pass
                 self.progress_after_id = None
 
     def update_progress_bar(self):
         """Update the progress bar to match the current video frame."""
+        # Ensure we don't have multiple timers running
+        if hasattr(self, 'progress_after_id') and self.progress_after_id:
+            try:
+                self.master.after_cancel(self.progress_after_id)
+            except Exception:
+                pass
+            self.progress_after_id = None
+
         if self.video_widgets and self.video_widgets[0].is_playing:
             current_frame = self.video_widgets[0].cap.get(cv2.CAP_PROP_POS_FRAMES)
             self.progress['value'] = current_frame
             self.progress_after_id = self.master.after(100, self.update_progress_bar)
         else:
-            if self.progress_after_id:
-                self.master.after_cancel(self.progress_after_id)
+            if hasattr(self, 'progress_after_id') and self.progress_after_id:
+                try:
+                    self.master.after_cancel(self.progress_after_id)
+                except Exception:
+                    pass
             self.progress_after_id = None
 
     def on_progress_click(self, event):
@@ -434,6 +458,10 @@ class QuadLabelerApp:
     
     def load_next_videos(self):
         """Load the next set of 4 videos."""
+        # Save managers to avoid data loss in case of crash
+        self.pairs_manager.save()
+        self.dataset_manager.save()
+        
         self.history.append(self.current_hashes)
 
         # Get 4 hashes that have the fewest ranks and are not ranked together
@@ -487,7 +515,7 @@ class QuadLabelerApp:
             return
         
         self.current_hashes = best_hashes
-        self.relationships = ['<'] * (len(self.current_hashes) -1) # Reset relationships
+        self.relationships = ['>'] * (len(self.current_hashes) -1) # Reset relationships
 
         # Clear any existing video widgets
         self.clear_video_widgets()
@@ -550,6 +578,13 @@ class QuadLabelerApp:
 
     def clear_video_widgets(self):
         """Clear all video widgets and relationship buttons, and release resources."""
+        if hasattr(self, 'progress_after_id') and self.progress_after_id:
+            try:
+                self.master.after_cancel(self.progress_after_id)
+            except Exception:
+                pass
+            self.progress_after_id = None
+            
         for widget in self.video_widgets:
             widget.release_resources()
             widget.destroy()
@@ -564,7 +599,7 @@ class QuadLabelerApp:
         """Toggle the relationship between video[index] and video[index+1]."""
         if 0 <= index < len(self.relationships):
             current_relationship = self.relationships[index]
-            new_relationship = '=' if current_relationship == '<' else '<'
+            new_relationship = '=' if current_relationship == '>' else '>'
             self.relationships[index] = new_relationship
             self.update_relationship_buttons_visuals()
 
@@ -678,7 +713,7 @@ class QuadLabelerApp:
             hash_i_plus_1 = self.current_hashes[i+1]
             relationship = self.relationships[i]
             
-            if relationship == '<':
+            if relationship == '>':
                 current_rank_group += 1
             
             ranked_groups.append((hash_i_plus_1, current_rank_group))
@@ -713,7 +748,7 @@ class QuadLabelerApp:
             messagebox.showinfo("Info", "No ranking to undo.")
             return
         self.current_hashes = self.history.pop()
-        self.relationships = ['<'] * (len(self.current_hashes) -1) # Reset relationships
+        self.relationships = ['>'] * (len(self.current_hashes) -1) # Reset relationships
 
         # Clear any existing video widgets
         self.clear_video_widgets()
@@ -798,15 +833,24 @@ class QuadLabelerApp:
         self.clear_video_widgets()
         
         if self.progress_after_id:
-            self.master.after_cancel(self.progress_after_id)
+            try:
+                self.master.after_cancel(self.progress_after_id)
+            except Exception:
+                pass
+            self.progress_after_id = None
 
         # Save managers
         self.pairs_manager.save()
         self.dataset_manager.save()
         
-        # Destroy window and quit
-        self.master.destroy()
-        self.master.quit()
+        # We don't destroy master here to let calling code handle it, 
+        # or we destroy if it's the main app.
+        if hasattr(self.master, "quit"):
+            try:
+                self.master.destroy()
+                self.master.quit()
+            except Exception:
+                pass
 
 class LoadingScreen:
     def __init__(self, master, title="Generating Videos"):
@@ -885,7 +929,10 @@ class LoadingScreen:
     def close(self):
         """Close the loading screen."""
         if hasattr(self, 'animation_id'):
-            self.window.after_cancel(self.animation_id)
+            try:
+                self.window.after_cancel(self.animation_id)
+            except Exception:
+                pass
         self.window.grab_release()
         self.window.destroy()
         
@@ -897,7 +944,7 @@ class LoadingScreen:
         self.update_status("Initializing...")
         
         def update_callback(message):
-            self.update_status(message)
+            self.master.after(0, lambda: self.update_status(message))
             return True  # Continue processing
         
         def run_generation():
