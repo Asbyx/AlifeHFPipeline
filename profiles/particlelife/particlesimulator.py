@@ -207,7 +207,7 @@ class ParticleSimulator(Simulator):
         return f"{path}.pt"
 
     def load_output(self, path: str) -> Any:
-        return torch.load(path)
+        return torch.load(path+".pt")
 
     def save_param(self, param: Any, path: str) -> None:
         torch.save(param, f"{path}.pt")
