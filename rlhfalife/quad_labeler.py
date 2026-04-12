@@ -243,9 +243,9 @@ class QuadLabelerApp:
         self.progress = None
         self.progress_after_id = None
         
-        # Relationships between adjacent videos (e.g., '<' or '=')
-        # For 4 videos, there are 3 relationships. Default to '<'.
-        self.relationships = ['<'] * 3 
+        # Relationships between adjacent videos (e.g., '>' or '=')
+        # For 4 videos, there are 3 relationships. Default to '>'.
+        self.relationships = ['>'] * 3 
         self.relationship_button_frames = [] # Frames holding the < and = buttons
         self.relationship_buttons_widgets = [] # Stores (less_btn, equal_btn) tuples
 
@@ -515,7 +515,7 @@ class QuadLabelerApp:
             return
         
         self.current_hashes = best_hashes
-        self.relationships = ['<'] * (len(self.current_hashes) -1) # Reset relationships
+        self.relationships = ['>'] * (len(self.current_hashes) -1) # Reset relationships
 
         # Clear any existing video widgets
         self.clear_video_widgets()
@@ -599,7 +599,7 @@ class QuadLabelerApp:
         """Toggle the relationship between video[index] and video[index+1]."""
         if 0 <= index < len(self.relationships):
             current_relationship = self.relationships[index]
-            new_relationship = '=' if current_relationship == '<' else '<'
+            new_relationship = '=' if current_relationship == '>' else '>'
             self.relationships[index] = new_relationship
             self.update_relationship_buttons_visuals()
 
@@ -713,7 +713,7 @@ class QuadLabelerApp:
             hash_i_plus_1 = self.current_hashes[i+1]
             relationship = self.relationships[i]
             
-            if relationship == '<':
+            if relationship == '>':
                 current_rank_group += 1
             
             ranked_groups.append((hash_i_plus_1, current_rank_group))
@@ -748,7 +748,7 @@ class QuadLabelerApp:
             messagebox.showinfo("Info", "No ranking to undo.")
             return
         self.current_hashes = self.history.pop()
-        self.relationships = ['<'] * (len(self.current_hashes) -1) # Reset relationships
+        self.relationships = ['>'] * (len(self.current_hashes) -1) # Reset relationships
 
         # Clear any existing video widgets
         self.clear_video_widgets()
