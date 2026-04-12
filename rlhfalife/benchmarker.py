@@ -1062,7 +1062,7 @@ class CreateBenchmarkApp:
         # Process outputs and create benchmark data in a single loop
         for i, (output, hash_val) in enumerate(zip(self.outputs, self.hashs)):
             # Save output and get the file path
-            output_file = self.simulator.save_output(output, Path(benchmark_dir) / hash_val)
+            output_file = self.simulator.save_output(output, str(Path(benchmark_dir) / hash_val))
             output_files.append(output_file)
             
             # Add entry to benchmark data
@@ -1106,7 +1106,7 @@ class CreateBenchmarkApp:
             is_last_overall = (i == num_videos - 1)
 
             # Determine the relationship to the *next* item
-            relationship = '<' # Default
+            relationship = '>' # Default
             if is_last_in_row1 and self.inter_row_relationship_button:
                 # Relationship is determined by the inter-row button
                 relationship = self.inter_row_relationship_button.cget("text")
@@ -1119,7 +1119,7 @@ class CreateBenchmarkApp:
                      print(f"Warning: Mismatch between video count and relationship buttons at index {i}")
 
             # If the relationship to the next item is NOT '=', increment the rank for the next item
-            if relationship == '<':
+            if relationship == '>':
                 current_rank += 1
                 
         # Final rank adjustment pass for tied ranks (could be simpler ways)
@@ -1130,7 +1130,7 @@ class CreateBenchmarkApp:
         for i in range(num_videos - 1):
              is_inter_row_comparison = (i == mid_point - 1)
              
-             button_text = '<' # Default assumption
+             button_text = '>' # Default assumption
              if is_inter_row_comparison:
                   if self.inter_row_relationship_button:
                        button_text = self.inter_row_relationship_button.cget("text")
