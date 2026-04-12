@@ -1392,6 +1392,7 @@ def test_rewarder_on_benchmark(simulator: Simulator, rewarder: Rewarder, out_pat
                 outputs.append(output)
             except Exception as e:
                 print(f"\nError loading output for hash {hash_val}: {e}")
+                input("Press Enter to abort")
                 return
         
         print_v(f"Loaded all {total_outputs} outputs successfully.            ")
@@ -1421,12 +1422,14 @@ def test_rewarder_on_benchmark(simulator: Simulator, rewarder: Rewarder, out_pat
         # Calculate Kendall Tau correlation
         kendall_tau, _ = kendalltau(results_df['Benchmark Rank'], results_df['Rewarder Ranking'])
 
-        # Calculate precision for top 3 and bottom 3
+        # Calculate precision for top 3, bottom 3 and top 5
         top_3_rewarder_hashes = results_df.sort_values(by="Rewarder Ranking")["Hash"].head(3)
         bottom_3_rewarder_hashes = results_df.sort_values(by="Rewarder Ranking")["Hash"].tail(3)
+        top_5_rewarder_hashes = results_df.sort_values(by="Rewarder Ranking")["Hash"].head(5)
 
         top_3_precision = results_df["Hash"].head(3).isin(top_3_rewarder_hashes).sum() / 3
         bottom_3_precision = results_df["Hash"].tail(3).isin(bottom_3_rewarder_hashes).sum() / 3
+        top_5_precision = results_df["Hash"].head(5).isin(top_5_rewarder_hashes).sum() / 5
 
         # Sort by benchmark rank for first display
         benchmark_sorted_df = results_df.sort_values('Benchmark Rank')
@@ -1442,7 +1445,8 @@ def test_rewarder_on_benchmark(simulator: Simulator, rewarder: Rewarder, out_pat
                 
                 # If the ordering is the same in both rankings +1 pt
                 if (benchmark_i < benchmark_j and rewarder_i < rewarder_j) or \
-                   (benchmark_i > benchmark_j and rewarder_i > rewarder_j):
+                   (benchmark_i > benchmark_j and rewarder_i > rewarder_j) or \
+                   (benchmark_i == benchmark_j and rewarder_i == rewarder_j):
                     pair_wise_accuracy += 1
         pair_wise_accuracy /= (len(benchmark_sorted_df) * (len(benchmark_sorted_df) - 1) / 2)
         
@@ -1454,6 +1458,7 @@ def test_rewarder_on_benchmark(simulator: Simulator, rewarder: Rewarder, out_pat
         print_v(f"{kendall_tau:>+6.2f}  Kendall Tau Correlation [-1 to 1]")
         print_v(f"{top_3_precision:>6.2f}  Top 3 Precision [0 to 1]")
         print_v(f"{bottom_3_precision:>6.2f}  Bottom 3 Precision [0 to 1]")
+        print_v(f"{top_5_precision:>6.2f}  Top 5 Precision [0 to 1]")
         
         print_v("\nResults sorted by Benchmark Rank:")
         print_v(benchmark_sorted_df.to_string(index=False))
