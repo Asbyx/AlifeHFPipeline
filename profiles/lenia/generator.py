@@ -16,7 +16,7 @@ class LeniaGenerator(Generator):
         """
         super().__init__()
         self.gen_mode = gen_mode
-        assert gen_mode in ['default', 'random', 'filtering', 'evolution'], f"Invalid generation mode: {gen_mode}"
+        assert gen_mode in ['default', 'random', 'filtering', 'evolution', 'benchmark'], f"Invalid generation mode: {gen_mode}"
 
         self.k_size = k_size
         self.device = device
@@ -38,9 +38,11 @@ class LeniaGenerator(Generator):
             case 'default':
                 batch_params = LeniaParams.default_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
                 return [batch_params[i] for i in range(batch_params.batch_size)]
+            
             case 'random':
                 batch_params = LeniaParams.random_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
                 return [batch_params[i] for i in range(batch_params.batch_size)]
+            
             case 'filtering':
                 if self.rewarder is None:
                     raise ValueError("No rewarder found for filtering generation mode.")
@@ -61,6 +63,7 @@ class LeniaGenerator(Generator):
                 
                 topk_indices = torch.topk(torch.tensor(rewards), nb_params).indices
                 return [batch_params[i.item()] for i in topk_indices]
+            
             case "evolution":
                 if self.rewarder is None:
                     raise ValueError("No rewarder found for evolution generation mode.")
@@ -69,10 +72,10 @@ class LeniaGenerator(Generator):
                     dataparams = LeniaParams.default_gen(batch_size=nb_params, k_size=self.k_size, device=self.device)
                     return [dataparams[i] for i in range(dataparams.batch_size)]
                 
-                num_generations = 5
-                pop_size = max(nb_params * 2, 20)
+                num_generations = 3
+                pop_size = max(nb_params * 3, 20)
                 num_parents = max(pop_size // 2, 2)
-                num_elite = max(num_parents // 2, 1)
+                num_elite = max(num_parents // 3, 1)
 
 
                 mutation_rate = 0.2
@@ -115,8 +118,41 @@ class LeniaGenerator(Generator):
                     population = next_gen
                     del rewards_tensor, parents, next_gen, top_indices
                     gc.collect()
-                    
                 return [population[i] for i in range(min(nb_params, len(population)))]
+            
+            case "benchmark":
+                """
+                    1. generates 20 parameters, simulate and reward them
+                    2. defines top reward and worst reward
+                    3. generates parameters until it a set of parameters that are uniformly distributed between the worst and best reward (epsilon of 0.5).
+                """
+                params = []
+                epsilon = 0.5
+                first_batch = LeniaParams.default_gen(batch_size=50, k_size=self.k_size, device=self.device)
+                sims = self.simulator.run([first_batch[i] for i in range(first_batch.batch_size)])
+                rewards = torch.tensor(self.rewarder.rank(sims))
+                del sims
+                gc.collect()
+
+                best_reward = rewards.max().item()
+                worst_reward = rewards.min().item()
+
+                params.extend([first_batch[rewards.argmax().item()], first_batch[rewards.argmin().item()]])
+                target_rewards = torch.linspace(worst_reward, best_reward, nb_params - 2)
+                while len(params) < nb_params:
+                    batch = LeniaParams.default_gen(batch_size=20, k_size=self.k_size, device=self.device)
+                    sims = self.simulator.run([batch[i] for i in range(batch.batch_size)])
+                    rewards = torch.tensor(self.rewarder.rank(sims))
+                    del sims
+                    gc.collect()
+
+                    for i in range(batch.batch_size):
+                        if any(abs(rewards[i].item() - target_rewards) < epsilon):
+                            params.append(batch[i])
+                            if len(params) >= nb_params:
+                                break
+                
+                return params
         raise ValueError(f"Invalid generation mode {self.gen_mode}")
 
     def train(self, simulator: "Simulator", rewarder: "Rewarder") -> None:
