@@ -172,3 +172,12 @@ class LeniaSimulator(Simulator):
             The loaded parameter
         """
         return LeniaParams(from_file=Path(path).with_suffix('.pt'))
+
+    def load_output(self, path):
+        """
+        Load the output from the path.
+        
+        Returns:
+            The loaded output
+        """
+        return torch.load(path+'.pt')
