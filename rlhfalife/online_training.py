@@ -40,6 +40,20 @@ class OnlineTrainingController:
 
         return dataset_path, pairs_path, self.out_paths
 
+    def reset(self) -> None:
+        import datetime
+        import shutil
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_dir = self.steps_root / f"archive_online_{date_str}"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        
+        for path in self.steps_root.iterdir():
+            if path == archive_dir or path.name.startswith("archive_online_"):
+                continue
+            shutil.move(str(path), str(archive_dir / path.name))
+        
+        self.initial_num_sims = None
+
     def existing_steps(self) -> List[int]:
         steps = []
         for path in self.steps_root.iterdir():
@@ -223,6 +237,13 @@ class OnlineTrainingApp:
         )
         self.next_step_button.pack(fill=tk.X)
 
+        self.reset_button = ttk.Button(
+            self.right_frame,
+            text="Reset Training",
+            command=self.reset_training
+        )
+        self.reset_button.pack(fill=tk.X, pady=(12, 0))
+
     def _build_overlay(self):
         self.overlay_var = tk.StringVar(value="")
         self.overlay_frame = tk.Frame(self.root, bg="#111111")
@@ -280,6 +301,35 @@ class OnlineTrainingApp:
         # keep refreshing to reflect ongoing labeling
         self.stats_job = self.root.after(1500, self.refresh_stats)
 
+    def reset_training(self):
+        if not messagebox.askyesno("Reset Training", "Are you sure you want to archive current steps and start a fresh online training?"):
+            return
+            
+        self.controller.reset()
+        
+        step_number, dataset_manager, pairs_manager, needs_generation = self.controller.ensure_initial_step(
+            prompt_fn=self._prompt_initial_sims
+        )
+        
+        if needs_generation:
+            self.show_overlay("Generating initial simulations...")
+            
+            def run_initial_generation():
+                try:
+                    self.simulator.generate_pairs(
+                        self.controller.initial_num_sims, 
+                        dataset_manager, 
+                        pairs_manager, 
+                        verbose=self.verbose,
+                        progress_callback=lambda msg: self.root.after(0, lambda: self.show_overlay(msg))
+                    )
+                finally:
+                    self.root.after(0, lambda: [self.hide_overlay(), self._activate_step(step_number, dataset_manager, pairs_manager)])
+
+            threading.Thread(target=run_initial_generation, daemon=True).start()
+        else:
+            self._activate_step(step_number, dataset_manager, pairs_manager)
+
     def launch_next_step(self):
         if self.is_training:
             return
@@ -299,6 +349,17 @@ class OnlineTrainingApp:
                         "No ranked pairs available to train on. Please rank more pairs before training."
                     ))
                     return
+
+                if hasattr(self.rewarder, 'wandb_params') and self.rewarder.wandb_params is not None:
+                    config_data = self.controller._load_config()
+                    if "wandb_run_id" not in config_data:
+                        import wandb
+                        config_data["wandb_run_id"] = wandb.util.generate_id()
+                        self.controller._save_config(config_data)
+                    self.rewarder.wandb_params["id"] = config_data["wandb_run_id"]
+                    self.rewarder.wandb_params["resume"] = "allow"
+
+                self.rewarder.current_online_step = self.current_step
 
                 print("[pipeline] Training rewarder...", flush=True)
                 self.rewarder.train(training_dataset)
