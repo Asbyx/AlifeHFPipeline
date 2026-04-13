@@ -61,4 +61,4 @@ Then, by running the main, the full pipeline is launched and the training starts
 
 You can view a gallery of generated videos comparing the results from random priors versus parameters generated using Human Preference Reward Models on our dedicated examples page:
 
-**👉 [View the Interactive Examples Gallery](https://Asbyx.github.io/AlifeHFPipeline/)**  
+**[View the Interactive Examples Gallery](https://Asbyx.github.io/AlifeHFPipeline/)**  
