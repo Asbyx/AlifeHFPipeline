@@ -1,4 +1,4 @@
-# Alife RLHF pipeline
+# Alife HF pipeline
 ## Presentation
 The idea of this app is to be a pipeline applying Reward Modeling using Human Preferences to train a model for generating interesting simulation parameters.
 
@@ -59,31 +59,6 @@ Then, by running the main, the full pipeline is launched and the training starts
 
 ## ./examples
 
-Here is a comparison of videos generated with a random prior parameter generator versus a trained reward model.
+You can view a gallery of generated videos comparing the results from random priors versus parameters generated using Human Preference Reward Models on our dedicated examples page:
 
-### Lenia
-
-| Prior | Reward Model |
-|:---:|:---:|
-| ![Video Prior 1](./examples/lenia/using_prior/129029842981.mp4) | ![Video RM 1](./examples/lenia/using_reward_models/108833336161.mp4) |
-| ![Video Prior 2](./examples/lenia/using_prior/129060200640.mp4) | ![Video RM 2](./examples/lenia/using_reward_models/108833336261.mp4) |
-| ![Video Prior 3](./examples/lenia/using_prior/129060201150.mp4) | ![Video RM 3](./examples/lenia/using_reward_models/108833336281.mp4) |
-| ![Video Prior 4](./examples/lenia/using_prior/129060203185.mp4) | ![Video RM 4](./examples/lenia/using_reward_models/108833364443.mp4) |
-| ![Video Prior 5](./examples/lenia/using_prior/129060220805.mp4) | ![Video RM 5](./examples/lenia/using_reward_models/127329389843.mp4) |
-
-### Particle Life
-
-| Prior | Reward Model |
-|:---:|:---:|
-| ![Video Prior 1](./examples/particlelife/using_prior/-106138492953067878.mp4) | ![Video RM 1](./examples/particlelife/using_reward_models/-2728612294673905733.mp4) |
-| ![Video Prior 2](./examples/particlelife/using_prior/-2369147273362576652.mp4) | ![Video RM 2](./examples/particlelife/using_reward_models/-8803982393252838527.mp4) |
-| ![Video Prior 3](./examples/particlelife/using_prior/-4499023261873601467.mp4) | ![Video RM 3](./examples/particlelife/using_reward_models/-881289731860236246.mp4) |
-| ![Video Prior 4](./examples/particlelife/using_prior/-6703622387425993567.mp4) | ![Video RM 4](./examples/particlelife/using_reward_models/1000960850808303495.mp4) |
-| ![Video Prior 5](./examples/particlelife/using_prior/1751419491931583468.mp4) | ![Video RM 5](./examples/particlelife/using_reward_models/1006960128830633922.mp4) |
-
-### Macelenia  
-Using a trained model:    
-![Video RM 1](./examples/macelenia/using_reward_models/141342322269.mp4)  
-![Video RM 2](./examples/macelenia/using_reward_models/141342322425.mp4)  
-![Video RM 3](./examples/macelenia/using_reward_models/141342322449.mp4)  
-![Video RM 4](./examples/macelenia/using_reward_models/141342322497.mp4)  
+**👉 [View the Interactive Examples Gallery](https://Asbyx.github.io/AlifeHFPipeline/)**  
