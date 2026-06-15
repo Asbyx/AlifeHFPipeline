@@ -8,6 +8,28 @@ from rlhfalife.utils import Simulator
 from rlhfalife.data_managers import DatasetManager, PairsManager
 import sv_ttk
 
+def _bind_space_restart(root, restart_callback):
+    """Bind the space bar to ``restart_callback`` without activating buttons.
+
+    By default a focused ttk.Button is activated by the space bar, so a plain
+    toplevel space binding would both restart the videos AND re-trigger the last
+    clicked button. Instance-level bindings run before the widget's class binding,
+    so binding the same handler on every ttk.Button - one that calls the callback
+    and returns 'break' - restarts the videos while cancelling the button
+    activation. Mouse clicks are left intact.
+    """
+    def on_space(event):
+        restart_callback()
+        return "break"
+
+    root.bind('<space>', on_space)
+    stack = [root]
+    while stack:
+        widget = stack.pop()
+        stack.extend(widget.winfo_children())
+        if isinstance(widget, ttk.Button):
+            widget.bind('<space>', on_space)
+
 def launch_video_labeler(simulator: Simulator, dataset_manager: DatasetManager, pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300)) -> None:
     """
     Launch the video labeler app.
@@ -157,9 +179,10 @@ class VideoLabelerApp:
         self.master.bind('<Left>', lambda event: self.left_wins())
         self.master.bind('<Right>', lambda event: self.right_wins())
         self.master.bind('<Down>', lambda event: self.declare_equal())
-        self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<BackSpace>', lambda event: self.previous_pair())
         self.master.bind('<s>', lambda event: self.skip_pair())
+        # Space restarts the videos but must NOT also activate the focused button.
+        _bind_space_restart(self.master, self.restart_videos)
     def load_next_videos(self, undo: bool = False):
         """Display the current pair of videos."""
         if undo:

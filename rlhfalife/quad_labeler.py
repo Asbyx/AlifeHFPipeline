@@ -8,6 +8,7 @@ import threading
 from collections import Counter
 from rlhfalife.utils import Simulator
 from rlhfalife.data_managers import DatasetManager, PairsManager
+from rlhfalife.labeler import _bind_space_restart
 import sv_ttk
 
 def launch_quad_labeler(simulator: Simulator, dataset_manager: DatasetManager, pairs_manager: PairsManager, verbose: bool = False, frame_size: tuple = (300, 300)) -> None:
@@ -364,12 +365,13 @@ class QuadLabelerApp:
         self.master.bind('<Return>', lambda event: self.submit_ranking())
         self.master.bind('s', lambda event: self.skip_ranking())
         self.master.bind('<BackSpace>', lambda event: self.undo_ranking())
-        self.master.bind('<space>', lambda event: self.restart_videos())
         self.master.bind('<Escape>', lambda event: self.save_and_exit())
         self.master.bind('p', lambda event: self.toggle_play_pause())
         self.master.bind('<Left>', lambda event: self.prev_frame())
         self.master.bind('<Right>', lambda event: self.next_frame())
-    
+        # Space restarts the videos but must NOT also activate the focused button.
+        _bind_space_restart(self.master, self.restart_videos)
+
     def toggle_play_pause(self):
         """Toggle the playing state of the videos."""
         if not self.video_widgets:
@@ -569,9 +571,11 @@ class QuadLabelerApp:
                 self.relationship_button_frames.append(btn_frame)
 
                 # Single button that toggles relationship
-                rel_button = ttk.Button(btn_frame, text=self.relationships[i], 
+                rel_button = ttk.Button(btn_frame, text=self.relationships[i],
                                      command=lambda idx=i: self.toggle_relationship(idx))
                 rel_button.pack(pady=2)
+                # Created after bind_keys: space restarts videos without activating it.
+                rel_button.bind('<space>', lambda event: (self.restart_videos(), "break")[1])
                 self.relationship_buttons_widgets.append(rel_button)
         
         self.update_relationship_buttons_visuals() # Initial visual state
