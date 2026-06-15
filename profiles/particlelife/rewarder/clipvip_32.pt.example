@@ -1,1 +1,12 @@
-HERE PUT THE CLIPVIP 32 WEIGHTS
+Here, there should be a clipvip_32.pt file, containing the clipvip_32 weights.
+
+Download it automatically by running, from the repo root:
+    uv run scripts/download_clipvip.py
+    (or: python scripts/download_clipvip.py)
+
+Or download it manually from the Hugging Face repo:
+    https://huggingface.co/frotaur/clipvip-32-rlhfalife
+    direct link: https://huggingface.co/frotaur/clipvip-32-rlhfalife/resolve/main/clipvip_32.pt
+and place it next to this file as clipvip_32.pt
+
+SHA256: 933c73557d06cd068556f19364bbc61c5e817d10571a248bf6accb45af89c5b8

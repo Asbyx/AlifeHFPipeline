@@ -5,6 +5,8 @@
 !rlhfalife/*
 !profiles/lenia/
 !profiles/lenia/*
+!profiles/ca2d/
+!profiles/ca2d/*
 
 !profiles/particlelife/
 !profiles/particlelife/*
@@ -12,6 +14,8 @@ profiles/particlelife/configs/
 profiles/particlelife/configs/*
 profiles/particlelife/rewarder/clipvip_32.pt
 
+!scripts/
+!scripts/*
 
 mes_notes.md
 
