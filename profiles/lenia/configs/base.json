@@ -16,5 +16,6 @@
     "generator": {
         "mode": "filtering"
     },
-    "device":"cuda"
+    "device":"cuda",
+    "test_set_path":"out/lenia/test_set"
 }
