@@ -155,6 +155,21 @@ class LeniaGenerator(Generator):
                 return params
         raise ValueError(f"Invalid generation mode {self.gen_mode}")
 
+    def hash_params(self, params: List[Any]) -> List[str]:
+        """
+        Ese the deterministic, content-based word hash (params_to_words,
+        exposed via LeniaParams.name): the hash depends only on the parameter
+        values, so identical params hash identically and different params do not
+        collide.
+
+        Args:
+            params: List of LeniaParams to hash
+
+        Returns:
+            A list of content-based string hashes, one per parameter.
+        """
+        return [param.name for param in params]
+
     def train(self, simulator: "Simulator", rewarder: "Rewarder") -> None:
         """
         Train the generator using the rewarder

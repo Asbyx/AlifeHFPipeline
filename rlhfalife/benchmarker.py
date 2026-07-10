@@ -506,6 +506,11 @@ class CreateBenchmarkApp:
         self.relationship_buttons = []  # Store INLINE relationship buttons
         self.inter_row_relationship_button = None # Button between rows
         self.outputs = []
+
+        # Number of ranked sets appended to a benchmark during this session.
+        # A benchmark accumulates several independent sets of videos; each set is
+        # ranked on its own and stored with its own set_id (see benchmark.csv schema).
+        self.sets_saved_this_session = 0
         
         # For drag and drop
         self.drag_source = None
@@ -541,7 +546,7 @@ class CreateBenchmarkApp:
         
         # Title and instruction
         ttk.Label(main_frame, text="Create Benchmark", font=("Arial", 16, "bold"), style='Dark.TLabel').pack(pady=(0, 5))
-        instructions = """Drag videos to rank them from best (top-left) to worst (bottom-right).\nUse the switches between videos to mark them as equal (=) or greater than (<)."""
+        instructions = """Drag videos to rank them from best (top-left) to worst (bottom-right).\nUse the switches between videos to mark them as equal (=) or greater than (<).\nUse "Save set & rank next" to accumulate several sets into one benchmark; "Save set & finish" to stop."""
         ttk.Label(main_frame, text=instructions, justify=tk.CENTER, style='Dark.TLabel').pack(pady=(0, 10))
         
         # Create a frame for the two rows of videos
@@ -564,16 +569,21 @@ class CreateBenchmarkApp:
         button_frame = ttk.Frame(main_frame, style='Dark.TFrame')
         button_frame.pack(pady=10)
         
-        # Save benchmark button
-        self.save_button = ttk.Button(button_frame, text="Save Benchmark as default", command=self.save_benchmark, style='Dark.TButton')
+        # Save the current set and immediately generate the next one to rank.
+        # This is the main control for building a multi-set benchmark.
+        self.save_next_button = ttk.Button(button_frame, text="Save set & rank next", command=self.save_set_and_next, style='Dark.TButton')
+        self.save_next_button.pack(side=tk.LEFT, padx=5)
+
+        # Save the current set to the default benchmark and finish.
+        self.save_button = ttk.Button(button_frame, text="Save set & finish", command=self.save_benchmark, style='Dark.TButton')
         self.save_button.pack(side=tk.LEFT, padx=5)
-        
-        # Save benchmark as button
-        self.save_as_button = ttk.Button(button_frame, text="Save Benchmark in custom location", command=self.save_benchmark_as, style='Dark.TButton')
+
+        # Save the current set to a custom location and finish.
+        self.save_as_button = ttk.Button(button_frame, text="Save set & finish (custom location)", command=self.save_benchmark_as, style='Dark.TButton')
         self.save_as_button.pack(side=tk.LEFT, padx=5)
-        
-        # Generate new videos button
-        self.generate_button = ttk.Button(button_frame, text="Generate New Videos", command=self.generate_videos, style='Dark.TButton')
+
+        # Discard the current (unsaved) set and generate a fresh one.
+        self.generate_button = ttk.Button(button_frame, text="New set (discard current)", command=self.generate_videos, style='Dark.TButton')
         self.generate_button.pack(side=tk.LEFT, padx=5)
         
         # Status label
@@ -613,6 +623,7 @@ class CreateBenchmarkApp:
         self.generate_button.config(state=tk.DISABLED)
         self.save_button.config(state=tk.DISABLED)
         self.save_as_button.config(state=tk.DISABLED)
+        self.save_next_button.config(state=tk.DISABLED)
         self.master.update_idletasks() # Ensure UI updates before starting thread
 
         # Start generation in a new thread
@@ -772,6 +783,7 @@ class CreateBenchmarkApp:
          self.generate_button.config(state=tk.NORMAL)
          self.save_button.config(state=tk.NORMAL)
          self.save_as_button.config(state=tk.NORMAL)
+         self.save_next_button.config(state=tk.NORMAL)
          self._is_generating = False
 
     def create_video_widgets(self):
@@ -1018,71 +1030,122 @@ class CreateBenchmarkApp:
         self.master.update_idletasks()
         # Potentially recalculate and set geometry here if needed
 
-    def save_benchmark_as(self):
-        """Save the benchmark in a user-selected location."""
+    def save_set_and_next(self):
+        """Append the current ranked set to the default benchmark and generate the next one.
+
+        This is the core of multi-set benchmark creation: the window stays open so
+        several independent sets of videos can be ranked and accumulated into a single
+        benchmark, each stored under its own set_id.
+        """
         if not self.outputs or not self.hashs:
             messagebox.showinfo("Info", "No outputs to save.")
             return
-        
+        if self._is_generating:
+            messagebox.showinfo("Info", "A generation is already in progress. Please wait.")
+            return
+
+        set_id = self._append_set_to_location(self.out_paths["benchmark"])
+        self.sets_saved_this_session += 1
+        self.status_label.config(
+            text=f"Saved set {set_id} ({len(self.hashs)} videos). "
+                 f"Sets this session: {self.sets_saved_this_session}. Generating next set..."
+        )
+        self.generate_videos()
+
+    def save_benchmark_as(self):
+        """Append the current set to a user-selected benchmark location, then finish."""
+        if not self.outputs or not self.hashs:
+            messagebox.showinfo("Info", "No outputs to save.")
+            return
+
         # Ask user for directory
         from tkinter import filedialog
         custom_dir = filedialog.askdirectory(
             title="Select Directory to Save Benchmark",
             initialdir=Path(self.out_paths["benchmark"]).parent
         )
-        
+
         if not custom_dir:  # User cancelled
             return
-            
-        # Save to the selected directory
-        self._save_benchmark_to_location(custom_dir)
-    
+
+        # Append to the selected directory and finish
+        self._finish_with_set(custom_dir)
+
     def save_benchmark(self):
-        """Save the current ranking as a benchmark to the default location."""
+        """Append the current set to the default benchmark location, then finish."""
         if not self.outputs or not self.hashs:
             messagebox.showinfo("Info", "No outputs to save.")
             return
-        
-        # Use the default benchmark directory
-        benchmark_dir = self.out_paths["benchmark"]
-        self._save_benchmark_to_location(benchmark_dir)
-        
-    def _save_benchmark_to_location(self, benchmark_dir):
-        """Save the benchmark to the specified location."""
-        # Create directory if it doesn't exist
-        if Path(benchmark_dir).exists():
-            shutil.rmtree(benchmark_dir)
-        Path(benchmark_dir).mkdir(parents=True, exist_ok=True)
-        
-        # Calculate actual ranks based on relationships (= buttons)
-        ranks = self.calculate_ranks()
-        
-        output_files = []
-        benchmark_data = []
-        # Process outputs and create benchmark data in a single loop
-        for i, (output, hash_val) in enumerate(zip(self.outputs, self.hashs)):
-            # Save output and get the file path
-            output_file = self.simulator.save_output(output, str(Path(benchmark_dir) / hash_val))
-            output_files.append(output_file)
-            
-            # Add entry to benchmark data
-            benchmark_data.append({
-                'rank': ranks[i],
-                'hash': hash_val,
-                'output_file': Path(output_file).name,
-            })
-        
-        # Save to CSV
-        df = pd.DataFrame(benchmark_data)
-        benchmark_csv = Path(benchmark_dir) / "benchmark.csv"
-        df.to_csv(benchmark_csv, index=False)
 
-        messagebox.showinfo("Success", f"Benchmark saved to {benchmark_dir}")
+        # Use the default benchmark directory
+        self._finish_with_set(self.out_paths["benchmark"])
+
+    def _finish_with_set(self, benchmark_dir):
+        """Append the current set to benchmark_dir, notify, and close the window."""
+        set_id = self._append_set_to_location(benchmark_dir)
+        self.sets_saved_this_session += 1
+
+        total_sets = set_id + 1  # set_id is 0-based and is the last set appended
+        messagebox.showinfo(
+            "Success",
+            f"Saved set {set_id} to {benchmark_dir}.\n"
+            f"Benchmark now contains {total_sets} set(s)."
+        )
         self.status_label.config(text=f"Benchmark saved to {benchmark_dir}")
 
         # close the window
         self.master.quit()
         self.master.destroy()
+
+    def _append_set_to_location(self, benchmark_dir):
+        """Append the current ranked set to the benchmark at ``benchmark_dir``.
+
+        Unlike a fresh save, this does NOT erase existing data: the current set's
+        rows are appended with an incremented ``set_id`` so multiple independent sets
+        of videos accumulate into one benchmark.
+
+        benchmark.csv schema: ``set_id, rank, hash, output_file``. Ranks restart from
+        1 within each set. Legacy benchmarks that lack a ``set_id`` column are treated
+        as a single set with ``set_id == 0``.
+
+        Returns:
+            The set_id assigned to the set that was just appended.
+        """
+        benchmark_dir = Path(benchmark_dir)
+        benchmark_dir.mkdir(parents=True, exist_ok=True)
+        benchmark_csv = benchmark_dir / "benchmark.csv"
+
+        # Determine the next set_id from any existing benchmark at this location.
+        existing_df = None
+        next_set_id = 0
+        if benchmark_csv.exists():
+            existing_df = pd.read_csv(benchmark_csv, dtype={'hash': str})
+            if 'set_id' not in existing_df.columns:
+                existing_df['set_id'] = 0  # legacy benchmark == one set
+            if len(existing_df) > 0:
+                next_set_id = int(existing_df['set_id'].max()) + 1
+
+        # Calculate actual ranks (1..N within this set) based on relationships (= buttons)
+        ranks = self.calculate_ranks()
+
+        new_rows = []
+        for i, (output, hash_val) in enumerate(zip(self.outputs, self.hashs)):
+            # Save output and get the file path
+            output_file = self.simulator.save_output(output, str(benchmark_dir / hash_val))
+
+            new_rows.append({
+                'set_id': next_set_id,
+                'rank': ranks[i],
+                'hash': hash_val,
+                'output_file': Path(output_file).name,
+            })
+
+        new_df = pd.DataFrame(new_rows)
+        combined = pd.concat([existing_df, new_df], ignore_index=True) if existing_df is not None else new_df
+        combined = combined[['set_id', 'rank', 'hash', 'output_file']]
+        combined.to_csv(benchmark_csv, index=False)
+
+        return next_set_id
     
     def calculate_ranks(self):
         """Calculate actual ranks based on relationship buttons across two rows."""
@@ -1399,72 +1462,126 @@ def test_rewarder_on_benchmark(simulator: Simulator, rewarder: Rewarder, out_pat
         
         # Get ranks from benchmark
         benchmark_ranks = benchmark_df['rank'].tolist()
-        
-        # Get scores from rewarder
+
+        # set_id groups the benchmark into independently-ranked sets. Items belonging
+        # to different sets were never compared by the labeler, so all metrics are
+        # computed WITHIN each set and then averaged across sets. Legacy benchmarks
+        # without a set_id column are treated as a single set (set_id == 0).
+        if 'set_id' in benchmark_df.columns:
+            set_ids = benchmark_df['set_id'].tolist()
+        else:
+            set_ids = [0] * len(benchmark_df)
+
+        # Get scores from rewarder. Each output is scored independently, so it is valid
+        # to score every set in a single call and group the results afterwards.
         print_v("Ranking using the rewarder...")
         rewarder_scores = rewarder.rank(outputs)
-        
+
         # Create results dataframe for display
         results_df = pd.DataFrame({
+            'Set': set_ids,
             'Hash': hashes,
             'Benchmark Rank': benchmark_ranks,
             'Rewarder Score': rewarder_scores
         })
-        
-        # Add ranking by rewarder scores (highest score = rank 1)
-        rewarder_ranking = [-score for score in rewarder_scores]  # Convert to "lower is better" for ranking
-        results_df['Rewarder Ranking'] = pd.Series(rewarder_ranking).rank(method='min').map(int)
-        
-        # Calculate ranking error (difference between benchmark rank and rewarder ranking)
+
+        # Add the rewarder's ranking WITHIN each set (highest score = rank 1)
+        results_df['Rewarder Ranking'] = (
+            results_df.groupby('Set')['Rewarder Score']
+            .rank(method='min', ascending=False)
+            .astype(int)
+        )
+
+        # Ranking error (difference between benchmark rank and rewarder ranking)
         results_df['Rank Error'] = abs(results_df['Benchmark Rank'] - results_df['Rewarder Ranking'])
-        avg_rank_error = results_df['Rank Error'].mean()
-        
-        # Calculate Kendall Tau correlation
-        kendall_tau, _ = kendalltau(results_df['Benchmark Rank'], results_df['Rewarder Ranking'])
 
-        # Calculate precision for top 3, bottom 3 and top 5
-        top_3_rewarder_hashes = results_df.sort_values(by="Rewarder Ranking")["Hash"].head(3)
-        bottom_3_rewarder_hashes = results_df.sort_values(by="Rewarder Ranking")["Hash"].tail(3)
-        top_5_rewarder_hashes = results_df.sort_values(by="Rewarder Ranking")["Hash"].head(5)
+        def _set_metrics(group):
+            """Compute within-set evaluation metrics for a single benchmark set."""
+            n = len(group)
+            bench = group['Benchmark Rank'].to_numpy()
+            rew = group['Rewarder Ranking'].to_numpy()
 
-        top_3_precision = results_df["Hash"].head(3).isin(top_3_rewarder_hashes).sum() / 3
-        bottom_3_precision = results_df["Hash"].tail(3).isin(bottom_3_rewarder_hashes).sum() / 3
-        top_5_precision = results_df["Hash"].head(5).isin(top_5_rewarder_hashes).sum() / 5
+            # Pairwise ordering accuracy over all within-set pairs
+            correct = 0
+            total = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    total += 1
+                    if (bench[i] < bench[j] and rew[i] < rew[j]) or \
+                       (bench[i] > bench[j] and rew[i] > rew[j]) or \
+                       (bench[i] == bench[j] and rew[i] == rew[j]):
+                        correct += 1
+            pair_acc = correct / total if total > 0 else float('nan')
 
-        # Sort by benchmark rank for first display
-        benchmark_sorted_df = results_df.sort_values('Benchmark Rank')
-        benchmark_sorted_df = benchmark_sorted_df[['Hash', 'Benchmark Rank', 'Rewarder Ranking', 'Rewarder Score', 'Rank Error']]
+            tau, _ = kendalltau(bench, rew)
 
-        pair_wise_accuracy = 0
-        for i in range(len(benchmark_sorted_df)):
-            for j in range(i+1, len(benchmark_sorted_df)):
-                benchmark_i = benchmark_sorted_df.iloc[i]["Benchmark Rank"]
-                benchmark_j = benchmark_sorted_df.iloc[j]["Benchmark Rank"]
-                rewarder_i = benchmark_sorted_df.iloc[i]["Rewarder Ranking"]
-                rewarder_j = benchmark_sorted_df.iloc[j]["Rewarder Ranking"]
-                
-                # If the ordering is the same in both rankings +1 pt
-                if (benchmark_i < benchmark_j and rewarder_i < rewarder_j) or \
-                   (benchmark_i > benchmark_j and rewarder_i > rewarder_j) or \
-                   (benchmark_i == benchmark_j and rewarder_i == rewarder_j):
-                    pair_wise_accuracy += 1
-        pair_wise_accuracy /= (len(benchmark_sorted_df) * (len(benchmark_sorted_df) - 1) / 2)
-        
-        
+            # Top/bottom precision, capped at the set size
+            by_bench = group.sort_values('Benchmark Rank')['Hash']
+            by_rew = group.sort_values('Rewarder Ranking')['Hash']
+            k3, k5 = min(3, n), min(5, n)
+            top3 = len(set(by_bench.head(k3)) & set(by_rew.head(k3))) / k3
+            bot3 = len(set(by_bench.tail(k3)) & set(by_rew.tail(k3))) / k3
+            top5 = len(set(by_bench.head(k5)) & set(by_rew.head(k5))) / k5
+
+            return {
+                'N': n,
+                'Pair Acc': pair_acc,
+                'Kendall': tau,
+                'Top3': top3,
+                'Bot3': bot3,
+                'Top5': top5,
+                'Avg Rank Err': group['Rank Error'].mean(),
+            }
+
+        # Compute metrics per set; only sets with at least 2 items can be evaluated
+        # (a single-item set has no pairs to compare).
+        set_rows = []
+        for set_id, group in results_df.groupby('Set'):
+            if len(group) < 2:
+                print_v(f"Skipping set {set_id}: fewer than 2 samples.")
+                continue
+            row = _set_metrics(group)
+            row['Set'] = set_id
+            set_rows.append(row)
+
+        if not set_rows:
+            print("Error: No set with at least 2 samples to evaluate.")
+            return
+
+        per_set = pd.DataFrame(set_rows).set_index('Set')
+
+        # Aggregate across sets (simple mean over sets)
+        pair_wise_accuracy = per_set['Pair Acc'].mean()
+        avg_kendall = per_set['Kendall'].mean()
+        avg_rank_error = per_set['Avg Rank Err'].mean()
+        top_3_precision = per_set['Top3'].mean()
+        bottom_3_precision = per_set['Bot3'].mean()
+        top_5_precision = per_set['Top5'].mean()
+
+        num_sets = per_set.shape[0]
+
         # Display results
         print_v("\n===== REWARDER EVALUATION RESULTS =====")
+        print_v(f"Evaluated {num_sets} set(s), {int(per_set['N'].sum())} videos (metrics averaged across sets)")
         print_v(f"{pair_wise_accuracy:>6.2f}  Pair-wise Accuracy [0 to 1, > 0.9 is good]")
         print_v(f"{avg_rank_error:>6.2f}  Average Rank Error")
-        print_v(f"{kendall_tau:>+6.2f}  Kendall Tau Correlation [-1 to 1]")
+        print_v(f"{avg_kendall:>+6.2f}  Kendall Tau Correlation [-1 to 1]")
         print_v(f"{top_3_precision:>6.2f}  Top 3 Precision [0 to 1]")
         print_v(f"{bottom_3_precision:>6.2f}  Bottom 3 Precision [0 to 1]")
         print_v(f"{top_5_precision:>6.2f}  Top 5 Precision [0 to 1]")
-        
-        print_v("\nResults sorted by Benchmark Rank:")
-        print_v(benchmark_sorted_df.to_string(index=False))
+
+        if num_sets > 1:
+            print_v("\nPer-set metrics:")
+            print_v(per_set.to_string())
+
+        # Detailed per-item table, grouped by set then benchmark rank
+        detailed_df = results_df.sort_values(['Set', 'Benchmark Rank'])
+        detailed_df = detailed_df[['Set', 'Hash', 'Benchmark Rank', 'Rewarder Ranking', 'Rewarder Score', 'Rank Error']]
+        print_v("\nResults (by set, then benchmark rank):")
+        print_v(detailed_df.to_string(index=False))
         print_v("="*100)
-        return pair_wise_accuracy
-        
+        return float(pair_wise_accuracy)
+
     except Exception as e:
         print(f"Error testing rewarder on benchmark: {e}")
         traceback.print_exc()
